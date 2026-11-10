@@ -1,8 +1,19 @@
 # What does this system need to do?
-
 Track volunteers & volunteer hours for grant purposes
 
+# How would you define success for this solution?
+- 99 year old can check in and out easily
+- Can export data for grants
+
+# What format does data need to be available in?
+Total number of volunteers
+Total number of hours
+Per category:
+    Total number of volunteers
+    Total number of hours
+
 # How are people interacting with this system?
+Touchscreen, big font, management side can be more complex
 
 # Screens
 Main screen
@@ -35,25 +46,31 @@ Enter last 4 digits of phone number screen
 
 Select user screen
 - /select-user
+- /admin/edit-times/new-entry/select-user
 ╭────────────────────────────────────────────╮
 │ Select your user [or create a new account] │ # or create if not manager signin
 │ ┌───────────────────────────┐              │
 | | User list                 |              | # all non-retired users with prior last 4 digits of phone number
-| | User first name last name │              | -> [next action], volunteer check in -> /success, volunteer check out -> /checkout-category, manager sign in -> /admin-login
+| | User first name last name │              | -> [next action]
 │ └───────────────────────────┘              |
 │ ┌──────┐                                   │
 | | Back |                                   | -> /[prior screen]
 │ └──────┘                                   |
 │ ┌─────────────────┐                        │ # jump to create new immediately if no entries in list
-| | Create new user |                        | -> /create-user  # only show if not manager
+| | Create new user |                        | -> /create-user  # only show if check-in/out
 │ └─────────────────┘                        |
-╰────────────────────────────────────────────╯
+╰────────────────────────────────────────────╯ # additional logout button as usual if admin
+[next action]:
+    volunteer check in -> /success
+    volunteer check out -> /checkout-category
+    manager sign in -> /admin-login
+    edit times new entry select user -> /admin/edit-times/create-entry
 
 
 Volunteer check-in success
 - /success [message]
 ╭────────────────────────────╮ # green border on box / green background?
-│ Successfully [signed in]!  │ # dynamic message for reuse, if no message error page
+│ Successfully [checked in]! │ # dynamic message for reuse, if no message error page
 │  < big green check mark >  │
 │         ┌────────┐         │
 |         | Return |         | -> / # automatically return after ~10 seconds
@@ -106,6 +123,8 @@ Administration login
 | | Return |                   │ -> /
 │ └────────┘                   │
 ╰──────────────────────────────╯
+Password criteria: includes uppercase, includes lowercase, contains
+special character, minimum length 5 characters
 
 
 Administration root
@@ -113,7 +132,8 @@ Administration root
 ╭───────────────────────────╮
 │ Actions                   │
 │ - View time interval data │ -> /admin/view-time-interval
-│ - Edit Checkins           │ -> /admin/edit-checkins
+│ - Edit Entries            │ -> /admin/edit-times
+│ - Edit Categories         │ -> /admin/edit-categories
 │ - Edit Users              │ -> /admin/edit-users
 │ ┌──────────┐              │
 | | Sign out |              | -> /admin/signout
@@ -123,7 +143,196 @@ Administration root
 
 Admin signout
 - /admin/signout
-Internal page that immediately redirects to /success [signed out] after clearing login cookie
+Internal page that immediately redirects to /success [signed out] after
+clearing login cookie
+
+
+Admin view time interval data
+- /admin/view-time-interval
+╭────────────────────────────────────────────────╮
+│ Autofill Range                                 │
+│ ┌───────────┐┌────────────┐┌───────────┐       │
+| | This week || This month || This year |       │ -> /admin/view-time-interval with start and end day below set to relevant range
+│ └───────────┘└────────────┘└───────────┘       │
+│ Range start day Range end day                  │ # Automatically "This week" on default
+│ ┌──────────────┐┌──────────────┐               │
+│ └──────────────┘└──────────────┘               │
+│ ┌─────────────────────────────────┐            │
+│ | ┌──────────────────────────┐    │            │
+| | | Hours per user           │    │            │
+| | ├──────────┬─────────┬─────┤    │            | # Sort by # hours descending
+| | |first name│last name│hours|    │            | # Hours as float, ie 3.5 hours, not 3:30
+| | ├──────────┼─────────┼─────┤    │            |
+| ┆ ┆          ┆         ┆     ┆    │            |
+| | ├──────────┼─────────┼─────┤    │            |
+| | |first name│last name│hours|    │            |
+| | └──────────┴─────────┴─────┘    │            |
+│ │ ┌─────────────────────────────┐ │            │
+| │ | Total                       │ │            │
+| │ ├─────────────────┬───────────┤ │            |
+| │ |Unique Volunteers|Total hours| │            |
+| │ ├─────────────────┼───────────┤ │            |
+| │ |<value>          |<value>    | │            |
+| │ └─────────────────┴───────────┘ │            |
+│ │ ┌───────────────┐               │            │
+| │ | Export as CSV |               │            | -> /admin/view-time-interval/export
+│ │ └───────────────┘               │            |
+│ └─────────────────────────────────┘            |
+│                                                |
+│ ┌────────────────────────────────────────────┐ │
+│ │ ┌────────────────────────────────────────┐ │ │ # For all categories with hours recorded
+| │ | Hours per user for category [category] │ │ │
+| │ ├──────────┬─────────┬───────────────────┤ │ | # Sort by # hours descending
+| │ |first name│last name│total hours        | │ | # Hours as float, ie 3.5 hours, not 3:30
+| │ ├──────────┼─────────┼───────────────────┤ │ |
+| ┆ ┆          ┆         ┆                   ┆ ┆ |
+| │ ├──────────┼─────────┼───────────────────┤ │ |
+| │ |first name│last name│total hours        | │ |
+| │ └──────────┴─────────┴───────────────────┘ │ |
+│ │ ┌───────────────────────────────┐          │ │
+| │ | Total for category [category] │          │ │
+| │ ├─────────────────┬─────────────┤          │ │
+| │ |Unique Volunteers|Total hours  |          │ │
+| │ ├─────────────────┼─────────────┤          │ │
+| │ |<value>          |<value>      |          │ │
+| │ └─────────────────┴─────────────┘          │ │
+│ │ ...                                        │ |
+│ │ ┌───────────────┐                          │ │
+| │ | Export as CSV |                          │ | -> /admin/view-time-interval/export
+│ │ └───────────────┘                          │ |
+│ └────────────────────────────────────────────┘ |
+│                                                |
+│ ┌────────┐                                     │
+| | Return |                                     | -> /admin
+│ └────────┘                                     |
+│ ┌──────────┐                                   │
+| | Sign out |                                   | -> /admin/signout
+│ └──────────┘                                   |
+╰────────────────────────────────────────────────╯
+
+
+Admin export time interval
+- /admin/view-time-interval/export
+Send octet stream response with CSV data
+Filename should be relevant to the export type performed, ie "volunteer_export_[date]_to_[date].csv"
+Accept url parameters for scripting? But would still need login cookie...
+
+
+Admin edit times
+- /admin/edit-times
+╭───────────────────────────────╮
+│ Actions                       │
+│ ┌─────────────────────────┐   │ # only show if unresolved entries exist
+| | User forgot to check in |   | -> /admin/edit-times/checkins
+│ └─────────────────────────┘   |
+│ - <value> entries to correct  │
+│ ┌──────────────────────────┐  │ # only show if unresolved entries exist
+| | User forgot to check out |  | -> /admin/edit-times/checkouts
+│ └──────────────────────────┘  |
+│ - <value> entries to correct  │
+│ ┌───────────────────────────┐ │
+| | Create entirely new entry | | -> /admin/edit-times/new-entry/select-user
+│ └───────────────────────────┘ |
+│ ┌────────┐                    │
+| | Return |                    | -> /admin
+│ └────────┘                    |
+│ ┌──────────┐                  │
+| | Sign out |                  | -> /admin/signout
+│ └──────────┘                  |
+╰───────────────────────────────╯
+
+
+Admin edit check-in/check-out times
+- /admin/edit-times/checkins
+- /admin/edit-times/checkouts [reversed of in-place]
+╭────────────────────────────────────────────╮
+│ ┌────────────────────────────────────────┐ │
+| | Entries with missing [check-in] stamps │ │
+| ├──────────┬─────────┬───────────────────┤ | # Sort by day oldest unresolved to newest
+| |first name│last name│[check-out] time   | | -> /admin/edit-times/resolve-entry
+| ├──────────┼─────────┼───────────────────┤ |
+| ┆          ┆         ┆                   ┆ |
+| ├──────────┼─────────┼───────────────────┤ |
+| |first name│last name│[check-out] time   | |
+| └──────────┴─────────┴───────────────────┘ |
+│ ┌────────┐                                 │
+| | Return |                                 | -> /admin
+│ └────────┘                                 |
+│ ┌──────────┐                               │
+| | Sign out |                               | -> /admin/signout
+│ └──────────┘                               |
+╰────────────────────────────────────────────╯
+
+
+Admin edit times fix/create entry
+- /admin/edit-times/resolve-entry
+- /admin/edit-times/create-entry
+╭─────────────────────────────────────╮
+│ Entry information                   │
+│ First name      Last name           │
+│ ┌──────────────┐┌──────────────┐    │ # read-only textbox from record
+│ └──────────────┘└──────────────┘    │
+│ Check-in time   Check-out time      │
+│ ┌──────────────┐┌──────────────┐    │ # read-only whichever of the two already exists
+│ └──────────────┘└──────────────┘    │
+│ ┌──────────────────────────┐        │ # "Create Entry" if not existing
+| | Update entry and resolve |        | -> /admin/edit-times/checkins or /admin/edit-times/checkouts or /admin/edit-times
+│ └──────────────────────────┘        |
+│ ┌──────────────────────────┐        │ # "Return without creating" entry if not existing
+| | Return without resolving |        | -> /admin/edit-times/checkins or /admin/edit-times/checkouts or /admin/edit-times
+│ └──────────────────────────┘        │
+│ ┌────────────────────────────────┐  │ # only if existing, red scary border
+| |<b>Permanently</b> delete entry |  | -> /admin/edit-times/checkins or /admin/edit-times/checkouts or /admin/edit-times
+│ └────────────────────────────────┘  │
+│ ┌──────────┐                        │
+| | Sign out |                        | -> /admin/signout
+│ └──────────┘                        |
+╰─────────────────────────────────────╯
+
+
+Admin edit categories
+- /admin/edit-categories
+╭─────────────────────────╮
+│ ┌────────────┐          │
+| | Categories │          │
+| ├────┬───────┤          |
+| |name│retired|          | -> /admin/categories/<internal category id>
+| ├────┼───────┤          |
+| ┆    ┆       ┆          |
+| ├────┼───────┤          |
+| |name│retired|          |
+| └────┴───────┘          |
+│ ┌─────────────────────┐ │
+| | Create new category │ │ -> /admin/new-category
+│ └─────────────────────┘ |
+│ ┌──────────┐            │
+| | Sign out |            | -> /admin/signout
+│ └──────────┘            |
+╰─────────────────────────╯
+
+
+Admin edit category
+- /admin/new-category
+- /admin/categories/<internal category id>
+╭───────────────────────────╮
+│ ┌───────────────────┐     │
+| | New category name │     │
+│ | ┌──────────────┐  │     │ # autofill from existing record if not new
+│ | └──────────────┘  │     │
+│ └───────────────────┘     |
+│ Retired checkbox          │
+│ ┌─┐                       │
+│ └─┘                       │
+│ ┌──────────────┐          │ # "Save Changes" if existing else "Create category"
+| |[Save Changes]|          | -> /admin/user/<internal user id>
+│ └──────────────┘          |
+│ ┌───────────────────────┐ │
+| | Return without saving | | -> /admin/edit-categories
+│ └───────────────────────┘ │
+│ ┌──────────┐              │
+| | Sign out |              | -> /admin/signout
+│ └──────────┘              |
+╰───────────────────────────╯
 
 
 Admin edit users
@@ -131,7 +340,7 @@ Admin edit users
 ╭───────────────────────────────────────────────────────╮
 │ ┌───────────────────────────────────────────────────┐ │
 | | User list                                         │ │
-| ├──────────┬─────────┬─────────────┬───────┬────────┤ |
+| ├──────────┬─────────┬─────────────┬───────┬────────┤ | # sort lastname alphebetical
 | |first name│last name│date of birth│retired│is admin| | -> /admin/user/<internal user id>
 | ├──────────┼─────────┼─────────────┼───────┼────────┤ |
 | ┆          ┆         ┆             ┆       ┆        ┆ |
@@ -150,27 +359,27 @@ Admin edit users
 Admin edit user
 - /admin/user/<internal user id>
 Inherit from /create-user?
-╭──────────────────────────────────╮
-│ User information                 │
-│ First name      Last name        │
-│ ┌──────────────┐┌──────────────┐ │ # autofill from existing record
-│ └──────────────┘└──────────────┘ │
-│ Date of birth   4 digit phone #  │
-│ ┌──────────────┐┌──────────────┐ │
-│ └──────────────┘└──────────────┘ │
-│ Retired checkbox                 │
-│ ┌─┐                              │
-│ └─┘                              │
-│ ┌──────────────┐                 │
-| | Save Changes |                 | -> /admin/user/<internal user id>
-│ └──────────────┘                 |
-│ ┌─────────────────────────┐      │
-| | Save & Upgrade to admin |      | -> /admin/user/<internal user id>/change-password
-│ └─────────────────────────┘      |
-│ ┌───────────────────────┐        │
-| | Return without saving |        | -> /admin
-│ └───────────────────────┘        │
-│ ┌──────────┐                     │
-| | Sign out |                     │  -> /admin/signout
-│ └──────────┘                     │
-╰──────────────────────────────────╯
+╭─────────────────────────────────────╮
+│ User information                    │
+│ First name      Last name           │
+│ ┌──────────────┐┌──────────────┐    │ # autofill from existing record
+│ └──────────────┘└──────────────┘    │
+│ Date of birth   4 digit phone #     │
+│ ┌──────────────┐┌──────────────┐    │
+│ └──────────────┘└──────────────┘    │
+│ Retired checkbox                    │
+│ ┌─┐                                 │
+│ └─┘                                 │
+│ ┌──────────────┐                    │
+| | Save Changes |                    | -> /admin/user/<internal user id>
+│ └──────────────┘                    |
+│ ┌─────────────────────────────────┐ │ # Grant or Revoke admin privileges
+| | Save & [Grant admin privileges] | | -> /admin/user/<internal user id>[/change-password if not currently an admin]
+│ └─────────────────────────────────┘ |
+│ ┌───────────────────────┐           │
+| | Return without saving |           | -> /admin
+│ └───────────────────────┘           │
+│ ┌──────────┐                        │
+| | Sign out |                        │  -> /admin/signout
+│ └──────────┘                        │
+╰─────────────────────────────────────╯
