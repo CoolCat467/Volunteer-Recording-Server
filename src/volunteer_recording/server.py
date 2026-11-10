@@ -145,6 +145,8 @@ async def handle_phone_post(
     errors = []
     if not digits:
         errors.append("Missing `digits` field.")
+    if not isinstance(digits, str):
+        errors.append("`digits` field must be a string.")
     elif len(digits) != 4:
         errors.append("`digits` field must be exactly 4 characters long.")
     elif not digits.isdecimal():
@@ -156,6 +158,7 @@ async def handle_phone_post(
             "\n<br>\n".join(errors),
         )
 
+    assert isinstance(digits, str)
     number = int(digits)
 
     # TODO: Get users from number
