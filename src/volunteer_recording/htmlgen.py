@@ -26,7 +26,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: nocover
     from collections.abc import Generator, Iterable, Mapping
-    from typing import TypeAlias
 
 
 def indent(level: int, text: str) -> str:
@@ -41,7 +40,7 @@ def deindent(level: int, text: str) -> str:
     return "\n".join(line.removeprefix(prefix) for line in text.splitlines())
 
 
-TagArg: TypeAlias = str | int | float | bool
+type TagArg = str | int | float | bool
 
 
 def _quote_strings(values: Iterable[TagArg]) -> Generator[str]:

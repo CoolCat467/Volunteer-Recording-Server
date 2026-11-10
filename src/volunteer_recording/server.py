@@ -28,7 +28,6 @@ import argparse
 import tomllib
 import traceback
 from collections.abc import (
-    AsyncGenerator,
     AsyncIterator,
     Awaitable,
     Callable,
@@ -46,14 +45,13 @@ from typing import (
     TypeVar,
     cast,
 )
-from uuid import UUID
 
 import orjson
 import platformdirs
 import trio
 from hypercorn.config import Config
 from hypercorn.trio import serve
-from quart import Response, request
+from quart import request
 from quart.templating import stream_template
 from quart_trio import QuartTrio
 
@@ -66,8 +64,7 @@ from volunteer_recording.server_utils import (
 
 if TYPE_CHECKING:
     from typing import ParamSpec
-
-    from werkzeug import Response as WerkzeugResponse
+    from uuid import UUID
 
     PS = ParamSpec("PS")
 
@@ -108,29 +105,19 @@ async def root_get() -> AsyncIterator[str]:
 
 @app.post("/")
 @pretty_exception
-async def root_post() -> (
-    WerkzeugResponse | AsyncIterator[str] | tuple[AsyncIterator[str], int]
-):
+async def root_post() -> str | tuple[AsyncIterator[str], int]:
     """Handle page POST."""
     multi_dict = await request.form
     form = multi_dict.to_dict()
 
     character_card = form.get("character_card", "").strip()
     current_situation = form.get("current_situation", "").strip()
-    js_disabled = bool(form.get("js_disabled", ""))
-    model = form.get("model", APP_DATA["default_model"])
 
     errors = []
     if not character_card:
         errors.append("Missing <code>character_card</code> parameter.")
     if not current_situation:
         errors.append("Missing <code>current_situation</code> parameter.")
-    valid_models = [model["id"] for model in APP_DATA["models"]]
-    if model not in valid_models:
-        valid_list = combine_end(map(repr, valid_models), "or")
-        errors.append(
-            f"Invalid <code>model</code> parameter. Must be {valid_list}.",
-        )
     if errors:
         return await get_exception_page(
             400,  # bad request
@@ -146,24 +133,13 @@ async def root_post() -> (
 @pretty_exception
 async def character_response_get(
     response_uuid: UUID,
-) -> Response | tuple[str, int]:
+) -> tuple[str, int]:
     """Character response page get handling."""
-    request_pool = APP_DATA["request_pool"]
-    stream = request_pool.obtain_request(response_uuid)
-    if stream is None:
-        # page expired
-        return "Requested page is expired or invalid.", 410
-
-    async def generate() -> AsyncGenerator[bytes]:
-        """Yield text fragments for javascript to load dynamically."""
-        async with stream.yield_response() as recv_chan:
-            async for fragment in recv_chan:
-                yield fragment.encode("utf-8")
-
-    return Response(generate(), content_type="text/plain; charset=utf-8")
+    # page expired
+    return "Requested page is expired or invalid.", 410
 
 
-async def json_file_cache_result(
+async def json_file_cache_result[T](
     path: trio.Path,
     period: int,
     perform_update: Callable[[], Awaitable[T]],

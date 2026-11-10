@@ -30,7 +30,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from character_sim import htmlgen, server
+from volunteer_recording import htmlgen, server
 
 if TYPE_CHECKING:
     from collections.abc import Callable

@@ -94,7 +94,7 @@ def pretty_exception_name(exc: BaseException) -> str:
     return f"{error} ({reason})"
 
 
-def pretty_exception(
+def pretty_exception[**PS, T](
     function: Callable[PS, Awaitable[T]],
 ) -> Callable[PS, Awaitable[T | tuple[AsyncIterator[str], int]]]:
     """Make exception pages pretty."""
