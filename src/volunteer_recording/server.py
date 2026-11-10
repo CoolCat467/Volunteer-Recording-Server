@@ -29,24 +29,20 @@ import tomllib
 import traceback
 from collections.abc import (
     AsyncIterator,
-    Awaitable,
-    Callable,
     Coroutine,
     Iterable,
 )
+from enum import IntEnum, auto
 from functools import partial
 from pathlib import Path
-from time import time
 from typing import (
     TYPE_CHECKING,
     Any,
     Final,
     TypedDict,
     TypeVar,
-    cast,
 )
 
-import orjson
 import platformdirs
 import trio
 from hypercorn.config import Config
@@ -64,7 +60,6 @@ from volunteer_recording.server_utils import (
 
 if TYPE_CHECKING:
     from typing import ParamSpec
-    from uuid import UUID
 
     PS = ParamSpec("PS")
 
@@ -99,87 +94,157 @@ APP_DATA = AppData({})
 async def root_get() -> AsyncIterator[str]:
     """Handle main page GET request."""
     return await stream_template(
-        "character_simulator.html.jinja",
+        "root.html.jinja",
     )
 
 
-@app.post("/")
+@app.get("/check-in")
 @pretty_exception
-async def root_post() -> str | tuple[AsyncIterator[str], int]:
-    """Handle page POST."""
+async def check_in_get() -> AsyncIterator[str]:
+    """Handle main page GET request."""
+    return await stream_template(
+        "phone_input.html.jinja",
+    )
+
+
+@app.get("/check-out")
+@pretty_exception
+async def check_out_get() -> AsyncIterator[str]:
+    """Handle main page GET request."""
+    return await stream_template(
+        "phone_input.html.jinja",
+    )
+
+
+@app.get("/admin-signin")
+@pretty_exception
+async def admin_signin_get() -> AsyncIterator[str]:
+    """Handle main page GET request."""
+    return await stream_template(
+        "phone_input.html.jinja",
+    )
+
+
+class PhoneInputSource(IntEnum):
+    """Phone input source screen."""
+
+    CHECK_IN = auto()
+    CHECK_OUT = auto()
+    ADMIN_SIGNIN = auto()
+
+
+async def handle_phone_post(
+    source: PhoneInputSource,
+) -> tuple[AsyncIterator[str], int] | dict[str, object]:
+    """Handle phone digits post request."""
     multi_dict = await request.form
     form = multi_dict.to_dict()
 
-    character_card = form.get("character_card", "").strip()
-    current_situation = form.get("current_situation", "").strip()
+    digits = form.get("digits")
 
     errors = []
-    if not character_card:
-        errors.append("Missing <code>character_card</code> parameter.")
-    if not current_situation:
-        errors.append("Missing <code>current_situation</code> parameter.")
+    if not digits:
+        errors.append("Missing `digits` field.")
+    elif len(digits) != 4:
+        errors.append("`digits` field must be exactly 4 characters long.")
+    elif not digits.isdecimal():
+        errors.append("`digits` field must be a decimal.")
     if errors:
         return await get_exception_page(
             400,  # bad request
             "Bad Request",
             "\n<br>\n".join(errors),
-            request.url,
         )
 
-    return "Not Implemented kekw"
+    number = int(digits)
+
+    # TODO: Get users from number
+    users: list[object] = []
+
+    return_link = "/" + "-".join(source.name.lower().split("_"))
+    show_create = source in (
+        PhoneInputSource.CHECK_IN,
+        PhoneInputSource.CHECK_OUT,
+    )
+
+    # TODO: Build `select_user` page
+    ##return await stream_template(
+    ##    "select_user.html.jinja",
+    ##    users=users,
+    ##    return_link=return_link,
+    ##    show_create=show_create,
+    ##)
+
+    return {
+        "source": source.name.lower(),
+        "number": number,
+        "users": users,
+        "return_link": return_link,
+        "show_create": show_create,
+    }
 
 
-@app.get("/character_response/<uuid:response_uuid>")
+@app.post("/check-in")
 @pretty_exception
-async def character_response_get(
-    response_uuid: UUID,
-) -> tuple[str, int]:
-    """Character response page get handling."""
-    # page expired
-    return "Requested page is expired or invalid.", 410
+async def check_in_post() -> (
+    tuple[AsyncIterator[str], int] | dict[str, object]
+):
+    """Handle main page POST request."""
+    return await handle_phone_post(PhoneInputSource.CHECK_IN)
 
 
-async def json_file_cache_result[T](
-    path: trio.Path,
-    period: int,
-    perform_update: Callable[[], Awaitable[T]],
-) -> T:
-    """Return cached result from file path.
+@app.post("/check-out")
+@pretty_exception
+async def check_out_post() -> (
+    tuple[AsyncIterator[str], int] | dict[str, object]
+):
+    """Handle main page POST request."""
+    return await handle_phone_post(PhoneInputSource.CHECK_OUT)
 
-    If file does not exist or file content age is beyond given period,
-    calls perform_update and saves the result as json to load later.
-    """
 
-    async def update_cache() -> T:
-        """Update cache contents."""
-        result = await perform_update()
-        await path.write_bytes(
-            orjson.dumps(
-                {
-                    "timestamp": int(time()),
-                    "content": result,
-                },
-                option=orjson.OPT_INDENT_2 | orjson.OPT_APPEND_NEWLINE,
-            ),
-        )
-        return result
+@app.post("/admin-signin")
+@pretty_exception
+async def admin_signin_post() -> (
+    tuple[AsyncIterator[str], int] | dict[str, object]
+):
+    """Handle main page POST request."""
+    return await handle_phone_post(PhoneInputSource.ADMIN_SIGNIN)
 
-    if not await path.exists():
-        folder = path.parent
-        if not await folder.exists():
-            await folder.mkdir(parents=True)
-        return await update_cache()
 
-    file_data = orjson.loads(await path.read_bytes())
-    timestamp = file_data.get("timestamp")
-    if not isinstance(timestamp, int):
-        return await update_cache()
-    if int(time()) - timestamp > period:
-        return await update_cache()
-    content = file_data.get("content")
-    if content is None:
-        return await update_cache()
-    return cast("T", content)
+##@app.post("/")
+##@pretty_exception
+##async def root_post() -> str | tuple[AsyncIterator[str], int]:
+##    """Handle page POST."""
+##    multi_dict = await request.form
+##    form = multi_dict.to_dict()
+##
+##    character_card = form.get("character_card", "").strip()
+##    current_situation = form.get("current_situation", "").strip()
+##
+##    errors = []
+##    if not character_card:
+##        errors.append("Missing <code>character_card</code> parameter.")
+##    if not current_situation:
+##        errors.append("Missing <code>current_situation</code> parameter.")
+##    if errors:
+##        return await get_exception_page(
+##            400,  # bad request
+##            "Bad Request",
+##            "\n<br>\n".join(errors),
+##            request.url,
+##        )
+##
+##    return "Not Implemented kekw"
+
+
+##@app.get("/character_response/<uuid:response_uuid>")
+##@pretty_exception
+##async def character_response_get(
+##    response_uuid: UUID,
+##) -> tuple[str, int]:
+##    """Character response page get handling."""
+##    # page expired
+##    return "Requested page is expired or invalid.", 410
 
 
 async def async_run_server(

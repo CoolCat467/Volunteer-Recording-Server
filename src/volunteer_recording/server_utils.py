@@ -91,7 +91,9 @@ def pretty_exception_name(exc: BaseException) -> str:
         last = idx
     words.append(exc_str[last:])
     error = " ".join(w for w in words if w not in {"Error", "Exception"})
-    return f"{error} ({reason})"
+    if reason:
+        error += f" ({reason})"
+    return error
 
 
 def pretty_exception[**PS, T](

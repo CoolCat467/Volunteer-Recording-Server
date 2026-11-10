@@ -1,0 +1,22 @@
+{% extends "base.html.jinja" %}
+{% block title %}Volunteer Recording{% endblock title %}
+{% block head %}
+<style>
+  .giga_button {
+    width: 97vw;
+    min-height: 50vh;
+    font-size: clamp(2rem,10vw,8rem);
+    margin: 0.5%;
+  }
+  .text_right {
+    text-align: right;
+  }
+</style>
+{% endblock head %}
+{% block body %}
+<a href="/check-in"><button class="giga_button submit_button">Check-in</button></a><br>
+<a href="/check-out"><button class="giga_button submit_button center">Check-out</button></a><br>
+<div class="text_right">
+  <a href="/admin-signin">Administration signin</a>
+</div>
+{% endblock body %}

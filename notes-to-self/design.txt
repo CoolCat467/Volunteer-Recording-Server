@@ -15,25 +15,34 @@ Per category:
 # How are people interacting with this system?
 Touchscreen, big font, management side can be more complex
 
+# Miscellaneous details
+- At midnight, if any unresolved check-in entries exist, automatically
+check them out with a flag that this entry needs resolved manually
+- Have name association somewhere
+- Week intervals run from Sunday to Saturday
+- Extras:
+    - On Saturday at midnight, send an email with an export about the
+    week that just rolled over
+
 # Screens
 Main screen
 - /
 ╭──────────────────────────────╮
 │ ┌──────────────────────────┐ │
-│ │ Check in button          │ │ -> /signin
+│ │ Check in button          │ │ -> /check-in
 │ └──────────────────────────┘ |
 │ ┌──────────────────────────┐ │
-│ │ Check out button         │ │ -> /signout
+│ │ Check out button         │ │ -> /check-out
 │ └──────────────────────────┘ |
 │                              │
-│       Management signin link │ -> /manager-signin
+│   Administration signin link │ -> /admin-signin
 ╰──────────────────────────────╯
 
 
 Enter last 4 digits of phone number screen
 - /check-in
 - /check-out
-- /manager-signin
+- /admin-signin
 ╭──────────────────────────────────────────────╮
 │ Enter the last 4 digits of your phone number │
 │         ┌─┐┌─┐┌─┐┌─┐                         │
@@ -272,8 +281,11 @@ Admin edit times fix/create entry
 │ First name      Last name           │
 │ ┌──────────────┐┌──────────────┐    │ # read-only textbox from record
 │ └──────────────┘└──────────────┘    │
+│ Day                                 │
+│ ┌──────────────┐                    │ # read-only if existing
+│ └──────────────┘                    │
 │ Check-in time   Check-out time      │
-│ ┌──────────────┐┌──────────────┐    │ # read-only whichever of the two already exists
+│ ┌──────────────┐┌──────────────┐    │ # read-only whichever of the two already exists unless automatic checkout
 │ └──────────────┘└──────────────┘    │
 │ ┌──────────────────────────┐        │ # "Create Entry" if not existing
 | | Update entry and resolve |        | -> /admin/edit-times/checkins or /admin/edit-times/checkouts or /admin/edit-times

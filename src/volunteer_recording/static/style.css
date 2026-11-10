@@ -51,12 +51,15 @@ code {
   margin: 0.5%;
   width: fit-content;
 }
+.center {
+  text-align: center;
+}
 #noticeText {
   font-size: 10px;
   display: inline-block;
   white-space: nowrap;
 }
-input[type="submit"] {
+input[type="submit"], .submit_button {
   border: 1.5px solid black;
   border-radius: 4px;
   padding: 0.5rem;
@@ -68,6 +71,20 @@ input[type="submit"] {
   body {
     background-color: #181818;
     color: #e0e0e0;
+  }
+  a {
+    color: #8ab4f8;
+  }
+  a:visited {
+    color: #c58af9;
+  }
+  a:hover {
+    color: #aecbfa;
+    text-decoration: underline;
+  }
+  a:focus-visible {
+    outline: "2px solid currentColor";
+    outline-offset: 3px;
   }
   .box {
     background-color: #1e1e1e;

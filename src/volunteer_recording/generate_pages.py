@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Generate pages for the character simulator web server.
+"""Generate pages for the volunteer recording web server.
 
 Copyright (C) 2022-2026  CoolCat467
 
@@ -146,13 +146,20 @@ def generate_style_css() -> str:
                 width="fit-content",
             ),
             htmlgen.css(
+                ".center",
+                text_align="center",
+            ),
+            htmlgen.css(
                 "#noticeText",
                 font_size="10px",
                 display="inline-block",
                 white_space="nowrap",
             ),
             htmlgen.css(
-                'input[type="submit"]',
+                (
+                    'input[type="submit"]',
+                    ".submit_button",
+                ),
                 border=("1.5px", "solid", "black"),
                 border_radius="4px",
                 padding="0.5rem",
@@ -166,6 +173,24 @@ def generate_style_css() -> str:
                     "body",
                     background_color="#181818",
                     color="#e0e0e0",
+                ),
+                htmlgen.css(
+                    "a",
+                    color="#8ab4f8",
+                ),
+                htmlgen.css(
+                    "a:visited",
+                    color="#c58af9",
+                ),
+                htmlgen.css(
+                    "a:hover",
+                    color="#aecbfa",
+                    text_decoration="underline",
+                ),
+                htmlgen.css(
+                    "a:focus-visible",
+                    outline="2px solid currentColor",
+                    outline_offset="3px",
                 ),
                 htmlgen.css(
                     ".box",
@@ -323,177 +348,119 @@ def generate_error_page() -> str:
     )
 
 
-@save_template_as("character_simulator")
-def generate_character_simulator() -> str:
-    """Generate / (root) GET/POST page."""
-    character_card_min_rows = 8
-
-    character_card_textarea = "\n<br>\n".join(
-        (
-            htmlgen.wrap_tag(
-                "label",
-                "Character Description",
-                block=False,
-                for_="character_card",
-            ),
-            htmlgen.jinja_with_block(
-                htmlgen.wrap_tag(
-                    "textarea",
-                    htmlgen.jinja_expression("body|escape"),
-                    block=False,
-                    name="character_card",
-                    id_="character_card",
-                    rows=htmlgen.jinja_expression(
-                        f"(body.count('\\n') + 1,{character_card_min_rows})|max",
-                    ),
-                    cols=80,
-                    required=True,
-                ),
-                {
-                    "body": "character_card_autofill|default('')|wordwrap",
-                },
-            ),
-        ),
-    )
-
-    current_situation_min_rows = character_card_min_rows
-
-    current_situation_textarea = "\n<br>\n".join(
-        (
-            htmlgen.wrap_tag(
-                "label",
-                "Current Situation",
-                block=False,
-                for_="current_situation",
-            ),
-            htmlgen.jinja_with_block(
-                htmlgen.wrap_tag(
-                    "textarea",
-                    htmlgen.jinja_expression("body|escape"),
-                    block=False,
-                    name="current_situation",
-                    id_="current_situation",
-                    rows=htmlgen.jinja_expression(
-                        f"(body.count('\\n') + 1,{current_situation_min_rows})|max",
-                    ),
-                    cols=80,
-                    required=True,
-                ),
-                {
-                    "body": "current_situation_autofill|default('')|wordwrap",
-                },
-            ),
-        ),
-    )
-
-    no_javascript_element = htmlgen.wrap_tag(
-        "noscript",
-        htmlgen.input_field(
-            "js_disabled",
-            None,
-            field_type="hidden",
-            attrs={"value": 1},
-        ),
-    )
-
-    model_dropdown = htmlgen.jinja_select_block(
-        "model",
-        "LLM Model:",
-        iterate="models",  # list[ModelData]
-        results=("model",),
-        content=htmlgen.jinja_wrap_tag_arg(
-            "option",
-            (
-                htmlgen.jinja_if_block(
-                    {
-                        "model.id == default_model": 'selected="true" ',
-                    },
-                    block=False,
-                ),
-            ),
-            htmlgen.jinja_expression("model.name"),
-            value=htmlgen.jinja_expression("model.id"),
-            block=False,
-        ),
-        else_content=htmlgen.option_tag(
-            "undefined",
-            "No models are available at this time?",
-            selected=True,
-        ),
-        required=True,
-    )
-
-    form_contents = "\n<br>\n".join(  # noqa: FLY002
-        (
-            character_card_textarea,
-            current_situation_textarea,
-            no_javascript_element,
-            model_dropdown,
-        ),
-    )
-
-    simulate_character_form = htmlgen.form(
-        "simulate_character",
-        form_contents,
-        "Simulate",
-        "Simulate a Character",
-    )
-
-    response = "\n<br>\n".join(
-        (
-            htmlgen.wrap_tag(
-                "label",
-                "LLM Response",
-                block=False,
-                for_="response",
-            ),
-            htmlgen.jinja_with_block(
-                htmlgen.wrap_tag(
-                    "textarea",
-                    htmlgen.jinja_expression("body|escape"),
-                    block=False,
-                    name="response",
-                    id_="response",
-                    rows=htmlgen.jinja_expression("body.count('\\n') + 1"),
-                    cols=80,
-                    readonly=True,
-                ),
-                {
-                    "body": "response|wordwrap",
-                },
-            ),
-        ),
-    )
-
-    response_section = htmlgen.jinja_if_block(
-        {
-            "response": htmlgen.contain_in_box(response),
-        },
-    )
-
-    html = "\n".join(
-        (
-            htmlgen.contain_in_box(simulate_character_form),
-            response_section,
-        ),
-    )
-
-    title_extra = htmlgen.jinja_if_block(
-        {
-            "response": " Response",
-        },
-        block=False,
-    )
-
+@save_template_as("root")
+def generate_root() -> str:
+    """Generate / (root) GET page."""
     head = htmlgen.wrap_tag(
-        "script",
-        "",
-        block=False,
-        src="/stream_response.js",
-        defer=True,
+        "style",
+        "\n".join(
+            (
+                htmlgen.css(
+                    ".giga_button",
+                    width="97vw",
+                    min_height="50vh",
+                    font_size="clamp(2rem,10vw,8rem)",
+                    margin="0.5%",
+                ),
+                htmlgen.css(
+                    ".text_right",
+                    text_align="right",
+                ),
+            ),
+        ),
     )
 
-    return template(f"LLM Character Simulator{title_extra}", html, head=head)
+    html = "<br>\n".join(
+        (
+            htmlgen.create_link(
+                "/check-in",
+                htmlgen.wrap_tag(
+                    "button",
+                    "Check-in",
+                    block=False,
+                    class_="giga_button submit_button",
+                ),
+            ),
+            htmlgen.create_link(
+                "/check-out",
+                htmlgen.wrap_tag(
+                    "button",
+                    "Check-out",
+                    block=False,
+                    class_="giga_button submit_button center",
+                ),
+            ),
+            htmlgen.wrap_tag(
+                "div",
+                htmlgen.create_link(
+                    "/admin-signin",
+                    "Administration signin",
+                ),
+                class_="text_right",
+            ),
+        ),
+    )
+
+    return template("Volunteer Recording", html, head=head)
+
+
+@save_template_as("phone_input")
+def generate_character_simulator() -> str:
+    """Generate phone digits input GET page."""
+    head = htmlgen.wrap_tag(
+        "style",
+        "\n".join(
+            (
+                htmlgen.css(
+                    (
+                        ".giga_input",
+                        'input[type="submit"]',
+                    ),
+                    width="50vw",
+                    min_height="50vh",
+                    font_size="clamp(2rem,10vw,8rem)",
+                    margin="0.5%",
+                    text_align="center",
+                ),
+                htmlgen.css(
+                    "button",
+                    display="block",
+                ),
+            ),
+        ),
+    )
+
+    html = "<br>\n".join(
+        (
+            htmlgen.wrap_tag(
+                "div",
+                htmlgen.form(
+                    "phone_digits",
+                    htmlgen.input_field(
+                        "digits",
+                        None,
+                        attrs={
+                            "inputmode": "numeric",
+                            "pattern": "[0-9]{4}",
+                            "maxlength": "4",
+                            "minlength": "4",
+                            "autocomplete": "off",
+                            "required": True,
+                            "class": "giga_input",
+                        },
+                    ),
+                    "Submit",
+                ),
+                class_="center",
+            ),
+        ),
+    )
+
+    return template(
+        "Enter the last 4 digits of your phone number",
+        html,
+        head=head,
+    )
 
 
 def matches_disk_files(new_files: dict[Path, str]) -> bool:
