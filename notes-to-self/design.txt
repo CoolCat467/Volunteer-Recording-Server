@@ -1,0 +1,176 @@
+# What does this system need to do?
+
+Track volunteers & volunteer hours for grant purposes
+
+# How are people interacting with this system?
+
+# Screens
+Main screen
+- /
+╭──────────────────────────────╮
+│ ┌──────────────────────────┐ │
+│ │ Check in button          │ │ -> /signin
+│ └──────────────────────────┘ |
+│ ┌──────────────────────────┐ │
+│ │ Check out button         │ │ -> /signout
+│ └──────────────────────────┘ |
+│                              │
+│       Management signin link │ -> /manager-signin
+╰──────────────────────────────╯
+
+
+Enter last 4 digits of phone number screen
+- /check-in
+- /check-out
+- /manager-signin
+╭──────────────────────────────────────────────╮
+│ Enter the last 4 digits of your phone number │
+│         ┌─┐┌─┐┌─┐┌─┐                         │
+│         └─┘└─┘└─┘└─┘                         │
+│           ╭──────╮                           │
+│           │Submit│                           │ -> /select-user
+│           ╰──────╯                           │
+╰──────────────────────────────────────────────╯
+
+
+Select user screen
+- /select-user
+╭────────────────────────────────────────────╮
+│ Select your user [or create a new account] │ # or create if not manager signin
+│ ┌───────────────────────────┐              │
+| | User list                 |              | # all non-retired users with prior last 4 digits of phone number
+| | User first name last name │              | -> [next action], volunteer check in -> /success, volunteer check out -> /checkout-category, manager sign in -> /admin-login
+│ └───────────────────────────┘              |
+│ ┌──────┐                                   │
+| | Back |                                   | -> /[prior screen]
+│ └──────┘                                   |
+│ ┌─────────────────┐                        │ # jump to create new immediately if no entries in list
+| | Create new user |                        | -> /create-user  # only show if not manager
+│ └─────────────────┘                        |
+╰────────────────────────────────────────────╯
+
+
+Volunteer check-in success
+- /success [message]
+╭────────────────────────────╮ # green border on box / green background?
+│ Successfully [signed in]!  │ # dynamic message for reuse, if no message error page
+│  < big green check mark >  │
+│         ┌────────┐         │
+|         | Return |         | -> / # automatically return after ~10 seconds
+│         └────────┘         |
+╰────────────────────────────╯
+
+
+Volunteer checkout category
+- /checkout-category
+╭────────────────────────────────────╮
+│ Select what category you did today │
+│ ┌──────────────┐┌──────────────┐   │
+│ |Category title│|Category title│   │ -> /success [checked out] # any button
+│ └──────────────┘└──────────────┘   │
+│ ┌──────────────┐┌──────────────┐   │
+│ |Category title│|Category title│   │
+│ └──────────────┘└──────────────┘   │
+│ ...                                │
+╰────────────────────────────────────╯
+
+
+Create user
+- /create-user
+╭──────────────────────────────────╮
+│ Please enter your information    │
+│ First name      Last name        │ # remember we got their last 4 phone number from earlier screen
+│ ┌──────────────┐┌──────────────┐ │
+│ └──────────────┘└──────────────┘ │
+│ Date of birth                    │
+│ ┌──────────────┐                 │
+│ └──────────────┘                 │
+│            ┌────────┐            │
+|            | Submit |            | -> /success [signed in]
+│            └────────┘            |
+╰──────────────────────────────────╯
+
+
+Administration login
+- /admin-login
+- /admin/user/<internal user id>/change-password
+╭──────────────────────────────╮
+│ Please enter [your password] │ # [new password] if change_password
+│ ┌──────────────┐             │ # password criteria match if change_password
+│ └──────────────┘             │
+│ <password criteria message>  │ # only if change_password
+│ ┌────────┐                   │
+| | Submit |                   │ -> /admin on success, /admin-login on failure with error message
+│ └────────┘                   │
+│ ┌────────┐                   │
+| | Return |                   │ -> /
+│ └────────┘                   │
+╰──────────────────────────────╯
+
+
+Administration root
+- /admin
+╭───────────────────────────╮
+│ Actions                   │
+│ - View time interval data │ -> /admin/view-time-interval
+│ - Edit Checkins           │ -> /admin/edit-checkins
+│ - Edit Users              │ -> /admin/edit-users
+│ ┌──────────┐              │
+| | Sign out |              | -> /admin/signout
+│ └──────────┘              |
+╰───────────────────────────╯
+
+
+Admin signout
+- /admin/signout
+Internal page that immediately redirects to /success [signed out] after clearing login cookie
+
+
+Admin edit users
+- /admin/edit-users
+╭───────────────────────────────────────────────────────╮
+│ ┌───────────────────────────────────────────────────┐ │
+| | User list                                         │ │
+| ├──────────┬─────────┬─────────────┬───────┬────────┤ |
+| |first name│last name│date of birth│retired│is admin| | -> /admin/user/<internal user id>
+| ├──────────┼─────────┼─────────────┼───────┼────────┤ |
+| ┆          ┆         ┆             ┆       ┆        ┆ |
+| ├──────────┼─────────┼─────────────┼───────┼────────┤ |
+| |first name│last name│date of birth│retired│is admin| |
+| └──────────┴─────────┴─────────────┴───────┴────────┘ |
+│ ┌────────┐                                            │
+| | Return |                                            | -> /admin
+│ └────────┘                                            |
+│ ┌──────────┐                                          │
+| | Sign out |                                          | -> /admin/signout
+│ └──────────┘                                          |
+╰───────────────────────────────────────────────────────╯
+
+
+Admin edit user
+- /admin/user/<internal user id>
+Inherit from /create-user?
+╭──────────────────────────────────╮
+│ User information                 │
+│ First name      Last name        │
+│ ┌──────────────┐┌──────────────┐ │ # autofill from existing record
+│ └──────────────┘└──────────────┘ │
+│ Date of birth   4 digit phone #  │
+│ ┌──────────────┐┌──────────────┐ │
+│ └──────────────┘└──────────────┘ │
+│ Retired checkbox                 │
+│ ┌─┐                              │
+│ └─┘                              │
+│ ┌──────────────┐                 │
+| | Save Changes |                 | -> /admin/user/<internal user id>
+│ └──────────────┘                 |
+│ ┌─────────────────────────┐      │
+| | Save & Upgrade to admin |      | -> /admin/user/<internal user id>/change-password
+│ └─────────────────────────┘      |
+│ ┌───────────────────────┐        │
+| | Return without saving |        | -> /admin
+│ └───────────────────────┘        │
+│ ┌──────────┐                     │
+| | Sign out |                     │  -> /admin/signout
+│ └──────────┘                     │
+╰──────────────────────────────────╯
