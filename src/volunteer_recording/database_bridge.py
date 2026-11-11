@@ -36,7 +36,6 @@ import trio
 
 from volunteer_recording.serializable import (
     Database,
-    MappingDatabase,
     Record as Record,
 )
 
@@ -339,8 +338,8 @@ class Calendar:
         day[index] = Timestamp(new_stamp, new_time)
 
 
-class TimestampDatabase(MappingDatabase[int, Calendar]):
-    """Mapping Database of user ids to calendar records."""
+class CalendarDatabase(Database[Calendar]):
+    """Database of calendar records."""
 
     __slots__ = ()
 
@@ -377,9 +376,10 @@ async def run() -> None:
     ##
     ##    database.add(user)
     ##    print(f"{database.data = }")
-    async with TimestampDatabase("timestamps.json") as database:
+    async with CalendarDatabase("timestamps.json") as database:
         database.data.clear()
-        calendar = database.setdefault(0, Calendar())
+        calendar_id = database.add(Calendar())
+        calendar = database[calendar_id]
         print(f"{calendar = }")
 
         calendar.add_timestamp(StampType.CHECK_IN, dt.datetime.now())
