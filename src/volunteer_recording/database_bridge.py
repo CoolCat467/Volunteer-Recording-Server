@@ -206,7 +206,7 @@ class Calendar:
         return cls(
             days={
                 dt.date.fromisoformat(k): list(map(Timestamp.deserialize, v))
-                for k, v in dict_["days"].items()
+                for k, v in dict_.get("days", {}).items()
             },
         )
 

@@ -43,6 +43,7 @@ from typing import (
 )
 from urllib.parse import urlencode
 
+import orjson
 import platformdirs
 import trio
 from hypercorn.config import Config
@@ -78,6 +79,7 @@ CACHE_PATH: Final = trio.Path(
 )
 MAIN_CONFIG: Final = CONFIG_PATH / "config.toml"
 USER_DATA: Final = DATA_PATH / "users.json"
+CALENDAR_DATA: Final = DATA_PATH / "calendar.json"
 
 T = TypeVar("T")
 
@@ -86,6 +88,7 @@ class AppData(TypedDict):
     """Global shared application data."""
 
     users: database_bridge.UserDatabase
+    calendar: database_bridge.CalendarDatabase
 
 
 app: Final = QuartTrio(  # pylint: disable=invalid-name
@@ -93,7 +96,10 @@ app: Final = QuartTrio(  # pylint: disable=invalid-name
     static_folder="static",
     template_folder="templates",
 )
-APP_DATA = AppData(users=database_bridge.UserDatabase(USER_DATA))
+APP_DATA = AppData(
+    users=database_bridge.UserDatabase(USER_DATA),
+    calendar=database_bridge.CalendarDatabase(CALENDAR_DATA),
+)
 
 
 @app.get("/")
@@ -179,9 +185,11 @@ ENDPOINT_TO_SOURCE: Final = {
     "check_in_select_user_get": "check_in_get",
     "check_in_select_user_post": "check_in_get",
     "check_in_user_get": "check_in_get",
+    "check_in_create_user_get": "check_in_get",
     "check_out_select_user_get": "check_out_get",
     "check_out_select_user_post": "check_out_get",
     "check_out_user_get": "check_out_get",
+    "check_out_create_user_get": "check_out_get",
     "admin_login_select_user_get": "admin_login_get",
     "admin_login_select_user_post": "admin_login_get",
     "admin_login_user_get": "admin_login_get",
@@ -244,7 +252,7 @@ async def select_user_post() -> (
 
     create_user = "create_user" in form
     digits = args.get("digits")
-    user_id = args.get("user_id")
+    user_id = form.get("user_id")
 
     create_available = request.endpoint != "admin_login_select_user_get"
 
@@ -297,6 +305,8 @@ async def create_user_get() -> tuple[AsyncIterator[str], int]:
 
     digits = args.get("digits")
 
+    source_page = app.url_for(ENDPOINT_TO_SOURCE[request.endpoint])
+
     errors = []
     if digits is not None:
         if len(digits) != 4:
@@ -310,15 +320,60 @@ async def create_user_get() -> tuple[AsyncIterator[str], int]:
             400,  # bad request
             "Bad Request",
             "\n<br>\n".join(errors),
-            return_link=app.url_for(request.endpoint),
+            return_link=source_page,
         )
 
-    autofill_code: int | None = None
+    autofill_digits: int | None = None
     if digits is not None:
-        autofill_code = int(digits)
+        autofill_digits = int(digits)
 
-    # TODO: Send create user template
-    raise NotImplementedError(f"{autofill_code = }")
+    params = urlencode({"digits": f"{autofill_digits:04}"})
+    return_link = f"{source_page}/select-user?{params}"
+
+    return await stream_template(
+        "create_user.html.jinja",
+        return_link=return_link,
+        # autofill_firstname=autofill_firstname,
+        # autofill_lastname=autofill_lastname,
+        # autofill_birthday=autofill_birthday,
+        autofill_digits=autofill_digits,
+    )
+
+
+@app.post("/check-in/create-user", endpoint="check_in_create_user_post")
+@app.post("/check-out/create-user", endpoint="check_out_create_user_post")
+@pretty_exception
+async def create_user_post() -> tuple[AsyncIterator[str], int]:
+    """Handle create user POST request."""
+    multi_dict = await request.form
+    form = multi_dict.to_dict()
+
+    digits = form.get("digits")
+
+    source_page = app.url_for(request.endpoint)
+
+    errors = []
+    if digits is not None:
+        if len(digits) != 4:
+            errors.append(
+                "`digits` argument must be exactly 4 characters long.",
+            )
+        elif not digits.isdecimal():
+            errors.append("`digits` argument value must be a decimal.")
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=source_page,
+        )
+
+    assert digits is not None
+
+    numeric_digits = int(digits)
+    print(f"{numeric_digits = }")
+
+    return form
 
 
 async def check_in_user_get(
@@ -327,8 +382,12 @@ async def check_in_user_get(
     """Handle user check-in GET request."""
     # User id exists, checked in user_selected_get
 
+    calendar_db = APP_DATA["calendar"]
+    user_calendar = calendar_db[user_id]
+
     # TODO: Add check-in stamp for user
-    raise NotImplementedError("user_id = }")
+    # raise NotImplementedError("user_id = }")
+    return orjson.dumps(user_calendar)
 
 
 async def check_out_user_get(
@@ -430,7 +489,11 @@ async def async_run_server(
     serve_partial: partial[Coroutine[Any, Any, None]],
 ) -> None:
     """Call server partial while managing databases."""
-    async with APP_DATA["users"]:
+    async with APP_DATA["users"], APP_DATA["calendar"]:
+        if len(APP_DATA["users"]) != len(APP_DATA["calendar"]):
+            raise RuntimeError(
+                "number of user records does not match number of calendar records",
+            )
         async with trio.open_nursery() as nursery:
             nursery.start_soon(serve_partial)
 

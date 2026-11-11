@@ -247,7 +247,7 @@ def input_field(
     if field_title is not None:
         lines.append(wrap_tag("label", field_title, False, for_=field_id))
     # If label should be before, reverse.
-    if field_type in {"number", "text"}:
+    if field_type in {"number", "text", "date"}:
         return "\n".join(reversed(lines))
     return "\n".join(lines)
 

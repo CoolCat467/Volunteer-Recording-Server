@@ -1,0 +1,34 @@
+{% extends "base.html.jinja" %}
+{% block title %}Create a new account{% endblock title %}
+{% block body %}
+<form id="create_user" name="create_user" method="post">
+  {% block input_fields scoped %}
+  <table>
+    <tr>
+      <td>
+        <label for="firstname">First name</label>
+        <input id="firstname" name="firstname" required="true" autocomplete="off" minlength="2" maxlength="100" size="30" value="{{ autofill_firstname|default('') }}">
+      </td>
+      <td>
+        <label for="lastname">Last name</label>
+        <input id="lastname" name="lastname" required="true" autocomplete="off" minlength="2" maxlength="100" size="30" value="{{ autofill_lastname|default('') }}">
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <label for="date_of_birth">Date of birth</label>
+        <input type="date" id="date_of_birth" name="date_of_birth" required="true" autocomplete="off" minlength="2" maxlength="100" size="30" value="{{ autofill_birthday|default('') }}">
+      </td>
+      <td>
+        <label for="digits">Last 4 digits of phone number</label>
+        <input id="digits" name="digits" required="true" autocomplete="off" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" minlength="4" min="0" max="9999" size="4" value="{{ autofill_digits|default('') }}">
+      </td>
+    </tr>
+  </table>
+  {% endblock input_fields %}
+  <br>
+  <a class="submit_button" href="{{ return_link }}">Back to select user</a>
+  <a class="submit_button" href="/">Return to main page</a>
+  <button type="submit">Create User</button>
+</form>
+{% endblock body %}

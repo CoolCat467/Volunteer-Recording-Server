@@ -555,7 +555,7 @@ def generate_select_user_get() -> str:
         ),
     )
 
-    html = "\n".join((htmlgen.form("select_user", form_content),))
+    html = htmlgen.form("select_user", form_content)
 
     title_extra = htmlgen.jinja_if_block(
         {
@@ -565,6 +565,148 @@ def generate_select_user_get() -> str:
 
     return template(
         f"Select your user{title_extra}",
+        html,
+    )
+
+
+@save_template_as("create_user")
+def generate_create_user_get() -> str:
+    """Generate select user from list GET page."""
+    return_link = htmlgen.jinja_expression("return_link")
+
+    back_link = htmlgen.wrap_tag(
+        "a",
+        "Back to select user",
+        block=False,
+        class_="submit_button",
+        href=return_link,
+    )
+
+    return_root = htmlgen.wrap_tag(
+        "a",
+        "Return to main page",
+        block=False,
+        class_="submit_button",
+        href="/",
+    )
+
+    submit_button = htmlgen.wrap_tag(
+        "button",
+        "Create User",
+        block=False,
+        type_="submit",
+    )
+
+    input_fields_table = "\n".join(
+        (
+            htmlgen.wrap_tag(
+                "tr",
+                "\n".join(
+                    (
+                        htmlgen.wrap_tag(
+                            "td",
+                            htmlgen.input_field(
+                                "firstname",
+                                "First name",
+                                attrs={
+                                    "required": True,
+                                    "autocomplete": "off",
+                                    "minlength": 2,
+                                    "maxlength": 100,
+                                    "size": 30,
+                                    "value": htmlgen.jinja_expression(
+                                        "autofill_firstname|default('')",
+                                    ),
+                                },
+                            ),
+                        ),
+                        htmlgen.wrap_tag(
+                            "td",
+                            htmlgen.input_field(
+                                "lastname",
+                                "Last name",
+                                attrs={
+                                    "required": True,
+                                    "autocomplete": "off",
+                                    "minlength": 2,
+                                    "maxlength": 100,
+                                    "size": 30,
+                                    "value": htmlgen.jinja_expression(
+                                        "autofill_lastname|default('')",
+                                    ),
+                                },
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            htmlgen.wrap_tag(
+                "tr",
+                "\n".join(
+                    (
+                        htmlgen.wrap_tag(
+                            "td",
+                            htmlgen.input_field(
+                                "date_of_birth",
+                                "Date of birth",
+                                field_type="date",
+                                attrs={
+                                    "required": True,
+                                    "autocomplete": "off",
+                                    "minlength": 2,
+                                    "maxlength": 100,
+                                    "size": 30,
+                                    "value": htmlgen.jinja_expression(
+                                        "autofill_birthday|default('')",
+                                    ),
+                                },
+                            ),
+                        ),
+                        htmlgen.wrap_tag(
+                            "td",
+                            htmlgen.input_field(
+                                "digits",
+                                "Last 4 digits of phone number",
+                                attrs={
+                                    "required": True,
+                                    "autocomplete": "off",
+                                    "inputmode": "numeric",
+                                    "pattern": "[0-9]{4}",
+                                    "maxlength": "4",
+                                    "minlength": "4",
+                                    "min": 0,
+                                    "max": 9999,
+                                    "size": 4,
+                                    "value": htmlgen.jinja_expression(
+                                        "autofill_digits|default('')",
+                                    ),
+                                },
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    form_content = "\n".join(
+        (
+            htmlgen.jinja_block(
+                "input_fields",
+                htmlgen.wrap_tag("table", input_fields_table),
+                scoped=True,
+            ),
+            "<br>",
+            back_link,
+            return_root,
+            submit_button,
+        ),
+    )
+
+    html = htmlgen.form("create_user", form_content)
+
+    return template(
+        "Create a new account",
         html,
     )
 
