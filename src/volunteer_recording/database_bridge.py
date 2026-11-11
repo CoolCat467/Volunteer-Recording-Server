@@ -26,9 +26,10 @@ __license__ = "GNU General Public License Version 3"
 
 
 import datetime as dt
+from collections import Counter
 from dataclasses import dataclass, field
 from enum import IntEnum, auto
-from typing import TYPE_CHECKING, Any, NotRequired, Self, TypedDict
+from typing import TYPE_CHECKING, Any, NamedTuple, NotRequired, Self, TypedDict
 
 import orjson
 import trio
@@ -42,6 +43,7 @@ from volunteer_recording.serializable import (
 if TYPE_CHECKING:
     from collections.abc import (
         Generator,
+        Iterable,
     )
 
 
@@ -107,11 +109,12 @@ class UserDatabase(Database[User]):
         )
 
 
-class TimestampType(IntEnum):
+class StampType(IntEnum):
     """Timestamp Types."""
 
     CHECK_IN = 0
-    CHECK_OUT = auto()
+    CHECKOUT = auto()
+    AUTO_CHECK_IN = auto()
     AUTO_CHECKOUT = auto()
 
 
@@ -126,14 +129,14 @@ class SerializedTimestampRecord(TypedDict):
 class Timestamp:
     """Timestamp record."""
 
-    type_: TimestampType
+    type_: StampType
     time: dt.time
 
     @classmethod
     def deserialize(cls, dict_: SerializedTimestampRecord) -> Self:
         """Return new class instance from deserializing dictionary."""
         return cls(
-            type_=TimestampType(dict_["type_"]),
+            type_=StampType(dict_["type_"]),
             time=dt.time.fromisoformat(dict_["time"]),
         )
 
@@ -142,6 +145,54 @@ class SerializedCalendarRecord(TypedDict):
     """Serialized Calendar record."""
 
     days: dict[str, list[SerializedTimestampRecord]]
+
+
+class EventCounts(NamedTuple):
+    """Event count data."""
+
+    in_: int
+    out: int
+    auto_in: int
+    auto_out: int
+
+    @property
+    def total_in(self) -> int:
+        """Return combined check-in count."""
+        return self.in_ + self.auto_in
+
+    @property
+    def total_out(self) -> int:
+        """Return combined checkout count."""
+        return self.out + self.auto_out
+
+    @property
+    def difference(self) -> int:
+        """Positive if there are more outs than ins."""
+        return self.total_out - self.total_in
+
+    def is_balanced(self) -> bool:
+        """Return if number of check-ins and total checkouts are balanced."""
+        return self.total_in == self.total_out
+
+    def needs_check_in(self) -> bool:
+        """Return if needs a checkout."""
+        return self.difference > 0
+
+    def needs_checkout(self) -> bool:
+        """Return if needs a checkout."""
+        return self.difference < 0
+
+    @classmethod
+    def from_timestamps(cls, timestamps: Iterable[StampType]) -> Self:
+        """Return new class instance from timestamps."""
+        event_counts = Counter(timestamps)
+        assert len(StampType) == 4
+        return cls(
+            in_=event_counts[StampType.CHECK_IN],
+            out=event_counts[StampType.CHECKOUT],
+            auto_in=event_counts[StampType.AUTO_CHECK_IN],
+            auto_out=event_counts[StampType.AUTO_CHECKOUT],
+        )
 
 
 @dataclass(slots=True, frozen=True)
@@ -160,15 +211,132 @@ class Calendar:
             },
         )
 
+    def yield_timestamp_types(self, date: dt.date) -> Generator[StampType]:
+        """Yield TimestampTypes for the given date."""
+        for timestamp in self.days.get(date, ()):
+            yield timestamp.type_
+
+    def get_event_counts(self, date: dt.date) -> EventCounts:
+        """Return EventCounts object for the given day."""
+        return EventCounts.from_timestamps(self.yield_timestamp_types(date))
+
+    def _get_event_counts_including(
+        self,
+        date: dt.date,
+        extra: StampType,
+    ) -> EventCounts:
+        """Return EventCounts object for the given day."""
+        timestamps = (*self.yield_timestamp_types(date), extra)
+        return EventCounts.from_timestamps(timestamps)
+
+    def _add_timestamp(
+        self,
+        type_: StampType,
+        date: dt.date,
+        time: dt.time,
+    ) -> None:
+        """Add timestamp of given type for given date and time."""
+        day = self.days.setdefault(date, [])
+        second = time.second
+        if time.microsecond > 500:
+            second += 1
+        day.append(
+            Timestamp(type_, time.replace(second=second, microsecond=0)),
+        )
+
     def add_timestamp(
         self,
-        type_: TimestampType,
+        type_: StampType,
         datetime: dt.datetime,
     ) -> None:
         """Add timestamp of given time from given datetime."""
         date = datetime.date()
-        day = self.days.get(date, [])
-        day.append(Timestamp(type_, datetime.time()))
+        time = datetime.time()
+
+        # This was a nightmare to figure out how to get it to work
+        # properly. Would advise not touching.
+
+        if type_ not in (StampType.AUTO_CHECK_IN, StampType.AUTO_CHECKOUT):
+            if type_ == StampType.CHECK_IN:
+                events = self.get_event_counts(date)
+            else:
+                events = self._get_event_counts_including(date, type_)
+
+            if type_ == StampType.CHECKOUT and events.needs_check_in():
+                self._add_timestamp(
+                    StampType.AUTO_CHECK_IN,
+                    date,
+                    (datetime - dt.timedelta(minutes=1)).time(),
+                )  # datetime.time())
+            elif type_ == StampType.CHECK_IN and events.needs_checkout():
+                self._add_timestamp(
+                    StampType.AUTO_CHECKOUT,
+                    date,
+                    (datetime - dt.timedelta(minutes=1)).time(),
+                )
+
+        self._add_timestamp(type_, date, time)
+
+    def end_of_day_check_missing_stamp(self, date: dt.date) -> None:
+        """Add a missing checkout stamp."""
+        events = self.get_event_counts(date)
+
+        if events.needs_checkout():
+            self._add_timestamp(
+                StampType.AUTO_CHECKOUT,
+                date,
+                dt.time(23, 59, 59),
+            )
+
+    def yield_automatic_locations(
+        self,
+    ) -> Generator[tuple[dt.date, int, dt.time, dt.time]]:
+        """Yield (date, index, minimum time, maximum time) tuples of all automatically added timestamps."""
+        for date, timestamps in self.days.items():
+            prior_time = dt.time()
+            for index, timestamp in enumerate(timestamps):
+                next_time = timestamp.time
+                if timestamp.type_ in (
+                    StampType.AUTO_CHECK_IN,
+                    StampType.AUTO_CHECKOUT,
+                ):
+                    yield date, index, prior_time, next_time
+                prior_time = next_time
+
+    def replace_timestamp(
+        self,
+        date: dt.date,
+        index: int,
+        new_time: dt.time,
+    ) -> None:
+        """Replace time of a specified timestamp with a new time."""
+        if date not in self.days:
+            raise KeyError(f"{date = } not recorded")
+        assert index > 0
+        day = self.days[date]
+        old = day[index]
+
+        old_stamp = old.type_
+
+        new_stamp: StampType = old_stamp
+        if old_stamp == StampType.AUTO_CHECK_IN:
+            new_stamp = StampType.CHECK_IN
+        elif old_stamp == StampType.AUTO_CHECKOUT:
+            new_stamp = StampType.CHECKOUT
+
+        prior_time = dt.time()
+        if index - 1 > 0:
+            prior_time = day[index - 1].time
+
+        if prior_time > new_time:
+            raise ValueError(
+                "new timestamp should be more than previous timestamp",
+            )
+
+        if new_time > old.time:
+            raise ValueError("new timestamp should be less than old timestamp")
+
+        day[index] = Timestamp(new_stamp, new_time)
 
 
 class TimestampDatabase(MappingDatabase[int, Calendar]):
@@ -210,9 +378,71 @@ async def run() -> None:
     ##    database.add(user)
     ##    print(f"{database.data = }")
     async with TimestampDatabase("timestamps.json") as database:
-        database[0] = Calendar()
-        calendar = database[0]
-        calendar.add_timestamp(TimestampType.CHECK_IN, dt.datetime.now())
+        database.data.clear()
+        calendar = database.setdefault(0, Calendar())
+        print(f"{calendar = }")
+
+        calendar.add_timestamp(StampType.CHECK_IN, dt.datetime.now())
+        calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
+        calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
+        calendar.add_timestamp(StampType.CHECK_IN, dt.datetime.now())
+        calendar.end_of_day_check_missing_stamp(dt.date.today())
+        ##        calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
+        ##        print("\n".join(map(repr, database.data[0].yield_timestamp_types(dt.date.today()))))
+        print("\n".join(map(repr, database.data[0].days[dt.date.today()])))
+        if tuple(database.data[0].yield_timestamp_types(dt.date.today())) != (
+            StampType.CHECK_IN,
+            StampType.CHECKOUT,
+            StampType.AUTO_CHECK_IN,
+            StampType.CHECKOUT,
+            StampType.CHECK_IN,
+            StampType.AUTO_CHECKOUT,
+        ):
+            print("bad")
+        print("------")
+        database.data[0].days.clear()
+        calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
+        calendar.add_timestamp(StampType.CHECK_IN, dt.datetime.now())
+        calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
+        calendar.end_of_day_check_missing_stamp(dt.date.today())
+        ##        print("\n".join(map(repr, database.data[0].yield_timestamp_types(dt.date.today()))))
+        print("\n".join(map(repr, database.data[0].days[dt.date.today()])))
+        if tuple(database.data[0].yield_timestamp_types(dt.date.today())) != (
+            StampType.AUTO_CHECK_IN,
+            StampType.CHECKOUT,
+            StampType.CHECK_IN,
+            StampType.CHECKOUT,
+        ):
+            print("bad")
+        print("------")
+        database.data[0].days.clear()
+        calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
+        calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
+        calendar.end_of_day_check_missing_stamp(dt.date.today())
+        ##        print("\n".join(map(repr, database.data[0].yield_timestamp_types(dt.date.today()))))
+        print("\n".join(map(repr, database.data[0].days[dt.date.today()])))
+        if tuple(database.data[0].yield_timestamp_types(dt.date.today())) != (
+            StampType.AUTO_CHECK_IN,
+            StampType.CHECKOUT,
+            StampType.AUTO_CHECK_IN,
+            StampType.CHECKOUT,
+        ):
+            print("bad")
+        print("------")
+        database.data[0].days.clear()
+        calendar.add_timestamp(StampType.CHECK_IN, dt.datetime.now())
+        calendar.add_timestamp(StampType.CHECK_IN, dt.datetime.now())
+        calendar.end_of_day_check_missing_stamp(dt.date.today())
+        ##        print("\n".join(map(repr, database.data[0].yield_timestamp_types(dt.date.today()))))
+        print("\n".join(map(repr, database.data[0].days[dt.date.today()])))
+        if tuple(database.data[0].yield_timestamp_types(dt.date.today())) != (
+            StampType.CHECK_IN,
+            StampType.AUTO_CHECKOUT,
+            StampType.CHECK_IN,
+            StampType.AUTO_CHECKOUT,
+        ):
+            print("bad")
+
         print(f"{database.data = }")
 
 

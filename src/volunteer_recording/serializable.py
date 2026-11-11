@@ -341,17 +341,17 @@ class MappingDatabase[KT, VT](SerializableMutableMapping[KT, VT]):
 
     __slots__ = ()
 
+    @abstractmethod
     def deserialize_key(self, key: Any) -> KT:
         """Return deserialized version of key."""
-        return key
 
     @abstractmethod
     def deserialize_entry(self, entry: Any) -> VT:
         """Return deserialized version of entry."""
 
-    def deserialize(self, data: bytes) -> MutableSequence[KT, VT]:  # noqa: D102
+    def deserialize(self, data: bytes) -> MutableMapping[KT, VT]:  # noqa: D102
         return {
-            k: self.deserialize_entry(v)
+            self.deserialize_key(k): self.deserialize_entry(v)
             for k, v in super().deserialize(data).items()
         }
 
