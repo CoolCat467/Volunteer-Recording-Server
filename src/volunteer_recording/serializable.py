@@ -297,6 +297,12 @@ class Database[T](SerializableSequence[T]):
         self.data.append(value)
         return index
 
+    def get(self, index: int, default: T | None = None) -> T | None:
+        """Return element at index or default if out of bounds."""
+        if index < 0 or index > len(self):
+            return default
+        return self[index]
+
     def yield_all_entries(self) -> Generator[Record[T]]:
         """Yield all entry records."""
         for entry_id, entry in enumerate(self):

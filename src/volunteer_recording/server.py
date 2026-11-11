@@ -134,11 +134,11 @@ async def phone_input_post() -> (
     if not digits:
         errors.append("Missing `digits` field.")
     if not isinstance(digits, str):
-        errors.append("`digits` field must be a string.")
+        errors.append("`digits` field type must be a string.")
     elif len(digits) != 4:
         errors.append("`digits` field must be exactly 4 characters long.")
     elif not digits.isdecimal():
-        errors.append("`digits` field must be a decimal.")
+        errors.append("`digits` field value must be a decimal.")
     if errors:
         return await get_exception_page(
             400,  # bad request
@@ -171,10 +171,16 @@ async def stream_select_user(
     )
 
 
-SELECT_USER_TO_SOURCE: Final = {
+ENDPOINT_TO_SOURCE: Final = {
     "check_in_select_user_get": "check_in_get",
+    "check_in_select_user_post": "check_in_get",
+    "check_in_user_get": "check_in_get",
     "check_out_select_user_get": "check_out_get",
+    "check_out_select_user_post": "check_out_get",
+    "check_out_user_get": "check_out_get",
     "admin_login_select_user_get": "admin_login_get",
+    "admin_login_select_user_post": "admin_login_get",
+    "admin_login_user_get": "admin_login_get",
 }
 
 
@@ -198,13 +204,13 @@ async def select_user_get() -> (
     elif len(digits) != 4:
         errors.append("`digits` argument must be exactly 4 characters long.")
     elif not digits.isdecimal():
-        errors.append("`digits` argument must be a decimal.")
+        errors.append("`digits` argument value must be a decimal.")
     if errors:
         return await get_exception_page(
             400,  # bad request
             "Bad Request",
             "\n<br>\n".join(errors),
-            return_link=app.url_for(SELECT_USER_TO_SOURCE[request.endpoint]),
+            return_link=app.url_for(ENDPOINT_TO_SOURCE[request.endpoint]),
         )
 
     assert digits is not None
@@ -223,7 +229,7 @@ async def select_user_get() -> (
 @app.post("/admin-login/select-user", endpoint="admin_login_select_user_post")
 @pretty_exception
 async def select_user_post() -> (
-    tuple[AsyncIterator[str], int] | dict[str, object]
+    tuple[AsyncIterator[str], int] | WerkzeugResponse
 ):
     """Handle select user POST request."""
     assert request.endpoint is not None
@@ -232,39 +238,106 @@ async def select_user_post() -> (
     form = multi_dict.to_dict()
     args = request.args.to_dict()
 
-    digits = args.get("digits")
     create_user = "create_user" in form
+    digits = args.get("digits")
+    user_id = args.get("user_id")
+
+    create_available = request.endpoint != "admin_login_select_user_get"
+
+    action_create = create_user and create_available
+    source_page = app.url_for(ENDPOINT_TO_SOURCE[request.endpoint])
 
     errors = []
-    if not digits:
-        errors.append("Missing `digits` argument.")
-    if not isinstance(digits, str):
-        errors.append("`digits` argument must be a string.")
-    elif len(digits) != 4:
-        errors.append("`digits` argument must be exactly 4 characters long.")
-    elif not digits.isdecimal():
-        errors.append("`digits` argument must be a decimal.")
+    if action_create and digits:
+        if len(digits) != 4:
+            errors.append(
+                "`digits` argument must be exactly 4 characters long.",
+            )
+        elif not digits.isdecimal():
+            errors.append("`digits` argument value must be a decimal.")
+    else:
+        if not isinstance(user_id, str):
+            errors.append("`user_id` field type must be a string.")
+        elif not user_id.isdecimal():
+            errors.append("`user_id` field value must be a decimal.")
     if errors:
         return await get_exception_page(
             400,  # bad request
             "Bad Request",
             "\n<br>\n".join(errors),
-            return_link=app.url_for(SELECT_USER_TO_SOURCE[request.endpoint]),
+            return_link=source_page,
         )
 
-    assert digits is not None
+    if action_create:
+        params_dict = {}
+        if digits is not None:
+            params_dict["digits"] = f"{int(digits):04}"
 
-    code = int(digits)
+        params = urlencode(params_dict)
+        extra = f"?{params}" if params else ""
+        return app.redirect(f"{source_page}/create-user{extra}")
 
-    create_available = request.endpoint != "admin_login_select_user_get"
+    assert user_id is not None
+    numeric_user_id = int(user_id)
 
-    # TODO: Implement select user POST
-    return {
-        "form": form,
-        "code": code,
-        "create_user": create_user,
-        "create_available": create_available,
-    }
+    return app.redirect(f"{source_page}/user/{numeric_user_id}")
+
+
+@app.get("/check-in/create-user", endpoint="check_in_create_user_get")
+@app.get("/check-out/create-user", endpoint="check_out_create_user_get")
+@pretty_exception
+async def create_user_get() -> tuple[AsyncIterator[str], int]:
+    """Handle create user GET request."""
+    assert request.endpoint is not None
+    args = request.args.to_dict()
+
+    digits = args.get("digits")
+
+    errors = []
+    if digits is not None:
+        if len(digits) != 4:
+            errors.append(
+                "`digits` argument must be exactly 4 characters long.",
+            )
+        elif not digits.isdecimal():
+            errors.append("`digits` argument value must be a decimal.")
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=app.url_for(request.endpoint),
+        )
+
+    autofill_code: int | None = None
+    if digits is not None:
+        autofill_code = int(digits)
+
+    # TODO: Implement create_user_get
+    raise NotImplementedError(f"{autofill_code = }")
+
+
+@app.get("/check-in/user/<int:user_id>", endpoint="check_in_user_get")
+@app.get("/check-out/user/<int:user_id>", endpoint="check_out_user_get")
+@app.get("/admin-login/user/<int:user_id>", endpoint="admin_login_user_get")
+@pretty_exception
+async def user_selected_get(
+    user_id: int,
+) -> tuple[AsyncIterator[str], int] | dict[str, int]:
+    """Handle user selected GET request."""
+    assert request.endpoint is not None
+    user = APP_DATA["users"].get(user_id)
+
+    if user is None:
+        return await get_exception_page(
+            404,  # bad request
+            "Not Found",
+            "User not found.",
+            return_link=app.url_for(ENDPOINT_TO_SOURCE[request.endpoint]),
+        )
+
+    # TODO: Implement user_selected_get
+    raise NotImplementedError(f"{user_id = }")
 
 
 ##@app.post("/")

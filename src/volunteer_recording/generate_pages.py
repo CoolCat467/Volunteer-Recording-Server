@@ -470,10 +470,43 @@ def generate_phone_input() -> str:
 @save_template_as("select_user")
 def generate_select_user_get() -> str:
     """Generate select user from list GET page."""
-    user_list = htmlgen.wrap_tag(
-        "p",
-        "TODO: user list<br>{{ user_records|list }}",
+    return_link = htmlgen.jinja_expression("return_link")
+
+    select_user_button = htmlgen.wrap_tag(
+        "button",
+        "Select",
         block=False,
+        type_="submit",
+        name="user_id",
+        value=htmlgen.jinja_expression("user_id"),
+    )
+
+    user_list = htmlgen.jinja_table(
+        None,
+        ("First Name", "Last Name", "Select"),
+        htmlgen.jinja_table_row(
+            ("user_id", "user"),
+            "user_records",
+            "\n".join(
+                (
+                    htmlgen.wrap_tag(
+                        "td",
+                        htmlgen.jinja_expression("user.firstname"),
+                        block=False,
+                    ),
+                    htmlgen.wrap_tag(
+                        "td",
+                        htmlgen.jinja_expression("user.lastname"),
+                        block=False,
+                    ),
+                    htmlgen.wrap_tag(
+                        "td",
+                        select_user_button,
+                        block=False,
+                    ),
+                ),
+            ),
+        ),
     )
 
     ##hidden_digits_field = htmlgen.tag(
@@ -482,8 +515,6 @@ def generate_select_user_get() -> str:
     ##    name="digits",
     ##    value=htmlgen.jinja_expression("digits"),
     ##)
-
-    return_link = htmlgen.jinja_expression("return_link")
 
     back_link = htmlgen.wrap_tag(
         "a",

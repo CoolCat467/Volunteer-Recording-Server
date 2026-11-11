@@ -4,7 +4,24 @@
 {% endif %}{% endblock title %}
 {% block body %}
 <form id="select_user" name="select_user" method="post">
-  <p>TODO: user list<br>{{ user_records|list }}</p>
+  <table>
+    <thead>
+      <tr>
+        {% for header_element in ('First Name', 'Last Name', 'Select') %}
+        <th>{{ header_element }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for user_id, user in user_records %}
+      <tr>
+        <td>{{ user.firstname }}</td>
+        <td>{{ user.lastname }}</td>
+        <td><button type="submit" name="user_id" value="{{ user_id }}">Select</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
   <br>
   <a class="submit_button" href="{{ return_link }}">Enter a different code</a>
   {% if show_create %}
