@@ -63,8 +63,12 @@ class Serializable[T](trio.abc.AsyncResource):
 
     async def load(self) -> None:
         """Load data from path."""
-        async with await self.path.open("rb") as fp:
-            self.data = self.deserialize(await fp.read())
+        try:
+            async with await self.path.open("rb") as fp:
+                self.data = self.deserialize(await fp.read())
+        except Exception as exc:
+            exc.add_note(f"{self.path = }")
+            raise
 
     def serialize(self) -> bytes:
         """Return serialized data to write to file."""
@@ -79,9 +83,17 @@ class Serializable[T](trio.abc.AsyncResource):
         """Write current data to path."""
         if not self.loaded:
             raise RuntimeError("Not currently loaded")
-        serialized = self.serialize()
-        async with await self.path.open("wb") as fp:
-            await fp.write(serialized)
+        try:
+            serialized = self.serialize()
+        except Exception as exc:
+            exc.add_note(f"{self.data = }")
+            raise
+        try:
+            async with await self.path.open("wb") as fp:
+                await fp.write(serialized)
+        except Exception as exc:
+            exc.add_note(f"{self.path = }")
+            raise
 
     async def __aenter__(self) -> Self:
         """Return self after loading data from path."""
@@ -102,7 +114,7 @@ class Serializable[T](trio.abc.AsyncResource):
         del self.data
 
 
-class SerializableDict[KT, VT](
+class SerializableMutableMapping[KT, VT](
     Serializable[MutableMapping[KT, VT]],
     MutableMapping[KT, VT],
 ):
@@ -322,3 +334,37 @@ class Database[T](SerializableSequence[T]):
             else:
                 # went through without hitting "break"
                 yield Record(entry_id, entry)
+
+
+class MappingDatabase[KT, VT](SerializableMutableMapping[KT, VT]):
+    """Database of mappings from an item to an entry."""
+
+    __slots__ = ()
+
+    def deserialize_key(self, key: Any) -> KT:
+        """Return deserialized version of key."""
+        return key
+
+    @abstractmethod
+    def deserialize_entry(self, entry: Any) -> VT:
+        """Return deserialized version of entry."""
+
+    def deserialize(self, data: bytes) -> MutableSequence[KT, VT]:  # noqa: D102
+        return {
+            k: self.deserialize_entry(v)
+            for k, v in super().deserialize(data).items()
+        }
+
+    async def load(self) -> None:  # noqa: D102
+        if not await self.path.exists():
+            self.data = {}
+            return
+        await super().load()
+
+    async def write_file(self) -> None:  # noqa: D102
+        if not self.loaded:
+            raise RuntimeError("Not currently loaded")
+        folder = self.path.parent
+        if not await folder.exists():
+            await folder.mkdir(parents=True)
+        await super().write_file()

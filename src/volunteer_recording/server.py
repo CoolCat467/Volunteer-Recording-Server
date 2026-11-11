@@ -345,7 +345,7 @@ async def admin_login_user_get(
     user_id: int,
     is_admin: bool,
 ) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
-    """Handle administrator login GET request."""
+    """Handle user administrator login GET request."""
     # User id exists, checked in user_selected_get
 
     if not is_admin:
@@ -353,7 +353,7 @@ async def admin_login_user_get(
             400,  # bad request
             "Bad Request",
             "User is not an administrator.",
-            return_link=app.url_for("admin_login_get"),
+            return_link="/admin-login",
         )
 
     # TODO: Show admin login page for user

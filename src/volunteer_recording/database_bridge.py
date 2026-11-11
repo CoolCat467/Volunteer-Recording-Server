@@ -26,18 +26,34 @@ __license__ = "GNU General Public License Version 3"
 
 
 import datetime as dt
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Self
+from dataclasses import dataclass, field
+from enum import IntEnum, auto
+from typing import TYPE_CHECKING, Any, NotRequired, Self, TypedDict
 
+import orjson
 import trio
 
-from volunteer_recording.serializable import Database, Record as Record
+from volunteer_recording.serializable import (
+    Database,
+    MappingDatabase,
+    Record as Record,
+)
 
 if TYPE_CHECKING:
     from collections.abc import (
         Generator,
-        Mapping,
     )
+
+
+class SerializedUserRecord(TypedDict):
+    """Serialized User record."""
+
+    firstname: str
+    lastname: str
+    date_of_birth: str
+    code: int
+    retired: NotRequired[bool]
+    is_admin: NotRequired[bool]
 
 
 @dataclass(slots=True, frozen=True)
@@ -52,12 +68,16 @@ class User:
     is_admin: bool = False
 
     @classmethod
-    def deserialize(cls, dict_: Mapping[str, Any]) -> Self:
+    def deserialize(cls, dict_: SerializedUserRecord) -> Self:
         """Return new class instance from deserializing dictionary."""
-        kwargs = dict(dict_)
-        kwargs["date_of_birth"] = dt.date.fromisoformat(dict_["date_of_birth"])
-
-        return cls(**kwargs)
+        return cls(
+            firstname=dict_["firstname"],
+            lastname=dict_["lastname"],
+            date_of_birth=dt.date.fromisoformat(dict_["date_of_birth"]),
+            code=dict_["code"],
+            retired=dict_["retired"],
+            is_admin=dict_["is_admin"],
+        )
 
 
 class UserDatabase(Database[User]):
@@ -87,21 +107,113 @@ class UserDatabase(Database[User]):
         )
 
 
+class TimestampType(IntEnum):
+    """Timestamp Types."""
+
+    CHECK_IN = 0
+    CHECK_OUT = auto()
+    AUTO_CHECKOUT = auto()
+
+
+class SerializedTimestampRecord(TypedDict):
+    """Serialized Timestamp record."""
+
+    type_: int
+    time: str
+
+
+@dataclass(slots=True, frozen=True)
+class Timestamp:
+    """Timestamp record."""
+
+    type_: TimestampType
+    time: dt.time
+
+    @classmethod
+    def deserialize(cls, dict_: SerializedTimestampRecord) -> Self:
+        """Return new class instance from deserializing dictionary."""
+        return cls(
+            type_=TimestampType(dict_["type_"]),
+            time=dt.time.fromisoformat(dict_["time"]),
+        )
+
+
+class SerializedCalendarRecord(TypedDict):
+    """Serialized Calendar record."""
+
+    days: dict[str, list[SerializedTimestampRecord]]
+
+
+@dataclass(slots=True, frozen=True)
+class Calendar:
+    """Calendar record."""
+
+    days: dict[dt.date, list[Timestamp]] = field(default_factory=dict)
+
+    @classmethod
+    def deserialize(cls, dict_: SerializedCalendarRecord) -> Self:
+        """Return new class instance from deserializing dictionary."""
+        return cls(
+            days={
+                dt.date.fromisoformat(k): list(map(Timestamp.deserialize, v))
+                for k, v in dict_["days"].items()
+            },
+        )
+
+    def add_timestamp(
+        self,
+        type_: TimestampType,
+        datetime: dt.datetime,
+    ) -> None:
+        """Add timestamp of given time from given datetime."""
+        date = datetime.date()
+        day = self.days.get(date, [])
+        day.append(Timestamp(type_, datetime.time()))
+
+
+class TimestampDatabase(MappingDatabase[int, Calendar]):
+    """Mapping Database of user ids to calendar records."""
+
+    __slots__ = ()
+
+    def deserialize_key(self, key: str) -> int:  # noqa: D102
+        return int(key)
+
+    def deserialize_entry(self, entry: SerializedCalendarRecord) -> Calendar:  # noqa: D102
+        return Calendar.deserialize(entry)
+
+    def serialize(self) -> bytes:
+        """Return serialized data to write to file."""
+        return orjson.dumps(
+            self.data,
+            option=orjson.OPT_APPEND_NEWLINE
+            | orjson.OPT_UTC_Z
+            | orjson.OPT_NAIVE_UTC
+            | orjson.OPT_OMIT_MICROSECONDS
+            | orjson.OPT_NON_STR_KEYS,
+        )
+
+
 async def run() -> None:
     """Run program."""
-    async with UserDatabase("test.json") as database:
-        database.data.clear()
-        user = User(
-            "Firstname",
-            "Lastname",
-            dt.date(2000, 1, 1),
-            1234,
-        )
-        print(f"{user = }")
-        print(f"{tuple(database) = }")
-
-        database.add(user)
-        print(f"{tuple(database) = }")
+    ##async with UserDatabase("test.json") as database:
+    ##    database.data.clear()
+    ##    user = User(
+    ##        "Firstname",
+    ##        "Lastname",
+    ##        dt.date(2000, 1, 1),
+    ##        1234,
+    ##    )
+    ##    print(f"{user = }")
+    ##    print(f"{database.data = }")
+    ##
+    ##    database.add(user)
+    ##    print(f"{database.data = }")
+    async with TimestampDatabase("timestamps.json") as database:
+        database[0] = Calendar()
+        calendar = database[0]
+        calendar.add_timestamp(TimestampType.CHECK_IN, dt.datetime.now())
+        print(f"{database.data = }")
 
 
 if __name__ == "__main__":
