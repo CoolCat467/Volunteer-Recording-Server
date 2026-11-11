@@ -32,7 +32,6 @@ from collections.abc import (
     Coroutine,
     Iterable,
 )
-from enum import IntEnum, auto
 from functools import partial
 from pathlib import Path
 from typing import (
@@ -42,6 +41,7 @@ from typing import (
     TypedDict,
     TypeVar,
 )
+from urllib.parse import urlencode
 
 import platformdirs
 import trio
@@ -61,6 +61,8 @@ from volunteer_recording.server_utils import (
 
 if TYPE_CHECKING:
     from typing import ParamSpec
+
+    from werkzeug import Response as WerkzeugResponse
 
     PS = ParamSpec("PS")
 
@@ -102,49 +104,31 @@ async def root_get() -> AsyncIterator[str]:
     )
 
 
-@app.get("/check-in")
+@app.get("/check-in", endpoint="check_in_get")
+@app.get("/check-out", endpoint="check_out_get")
+@app.get("/admin-login", endpoint="admin_login_get")
 @pretty_exception
-async def check_in_get() -> AsyncIterator[str]:
-    """Handle main page GET request."""
-    return await stream_template(
-        "phone_input.html.jinja",
-    )
+async def phone_input_get() -> AsyncIterator[str]:
+    """Render the phone input page."""
+    return await stream_template("phone_input.html.jinja")
 
 
-@app.get("/check-out")
+@app.post("/check-in", endpoint="check_in_post")
+@app.post("/check-out", endpoint="check_out_post")
+@app.post("/admin-login", endpoint="admin_login_post")
 @pretty_exception
-async def check_out_get() -> AsyncIterator[str]:
-    """Handle main page GET request."""
-    return await stream_template(
-        "phone_input.html.jinja",
-    )
-
-
-@app.get("/admin-signin")
-@pretty_exception
-async def admin_signin_get() -> AsyncIterator[str]:
-    """Handle main page GET request."""
-    return await stream_template(
-        "phone_input.html.jinja",
-    )
-
-
-class PhoneInputSource(IntEnum):
-    """Phone input source screen."""
-
-    CHECK_IN = auto()
-    CHECK_OUT = auto()
-    ADMIN_SIGNIN = auto()
-
-
-async def handle_phone_post(
-    source: PhoneInputSource,
-) -> tuple[AsyncIterator[str], int] | dict[str, object]:
-    """Handle phone digits post request."""
+async def phone_input_post() -> (
+    tuple[AsyncIterator[str], int] | WerkzeugResponse
+):
+    """Handle phone digits POST request."""
     multi_dict = await request.form
     form = multi_dict.to_dict()
 
+    print(f"[phone_input_post] {form = }")
     digits = form.get("digits")
+
+    assert request.endpoint is not None
+    source_page = app.url_for(request.endpoint)
 
     errors = []
     if not digits:
@@ -160,62 +144,127 @@ async def handle_phone_post(
             400,  # bad request
             "Bad Request",
             "\n<br>\n".join(errors),
+            return_link=source_page,
         )
 
     assert isinstance(digits, str)
+
     code = int(digits)
+    params = urlencode({"digits": f"{code:04}"})
+    return app.redirect(f"{source_page}/select-user?{params}")
 
-    # TODO: Get users from number
-    users = APP_DATA["users"].yield_records_from_code(code)
 
-    return_link = "/" + "-".join(source.name.lower().split("_"))
-    show_create = source in (
-        PhoneInputSource.CHECK_IN,
-        PhoneInputSource.CHECK_OUT,
+async def stream_select_user(
+    code: int,
+    return_link: str,
+    show_create: bool = True,
+) -> AsyncIterator[str]:
+    """Return select user template stream."""
+    # Get users from code
+    user_records = APP_DATA["users"].yield_records_from_code(code)
+
+    return await stream_template(
+        "select_user.html.jinja",
+        user_records=user_records,
+        return_link=return_link,
+        show_create=show_create,
     )
 
-    # TODO: Build `select_user` page
-    ##return await stream_template(
-    ##    "select_user.html.jinja",
-    ##    users=users,
-    ##    return_link=return_link,
-    ##    show_create=show_create,
-    ##)
 
+SELECT_USER_TO_SOURCE: Final = {
+    "check_in_select_user_get": "check_in_get",
+    "check_out_select_user_get": "check_out_get",
+    "admin_login_select_user_get": "admin_login_get",
+}
+
+
+@app.get("/check-in/select-user", endpoint="check_in_select_user_get")
+@app.get("/check-out/select-user", endpoint="check_out_select_user_get")
+@app.get("/admin-login/select-user", endpoint="admin_login_select_user_get")
+@pretty_exception
+async def select_user_get() -> (
+    tuple[AsyncIterator[str], int] | AsyncIterator[str]
+):
+    """Handle select user GET request."""
+    assert request.endpoint is not None
+
+    args = request.args.to_dict()
+
+    digits = args.get("digits")
+
+    errors = []
+    if not digits:
+        errors.append("Missing `digits` argument.")
+    elif len(digits) != 4:
+        errors.append("`digits` argument must be exactly 4 characters long.")
+    elif not digits.isdecimal():
+        errors.append("`digits` argument must be a decimal.")
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=app.url_for(SELECT_USER_TO_SOURCE[request.endpoint]),
+        )
+
+    assert digits is not None
+
+    show_create = request.endpoint != "admin_login_select_user_get"
+
+    return await stream_select_user(
+        code=int(digits),
+        return_link=app.url_for(request.endpoint),
+        show_create=show_create,
+    )
+
+
+@app.post("/check-in/select-user", endpoint="check_in_select_user_post")
+@app.post("/check-out/select-user", endpoint="check_out_select_user_post")
+@app.post("/admin-login/select-user", endpoint="admin_login_select_user_post")
+@pretty_exception
+async def select_user_post() -> (
+    tuple[AsyncIterator[str], int] | dict[str, object]
+):
+    """Handle select user POST request."""
+    assert request.endpoint is not None
+
+    multi_dict = await request.form
+    form = multi_dict.to_dict()
+    args = request.args.to_dict()
+
+    digits = args.get("digits")
+    create_user = "create_user" in form
+
+    errors = []
+    if not digits:
+        errors.append("Missing `digits` argument.")
+    if not isinstance(digits, str):
+        errors.append("`digits` argument must be a string.")
+    elif len(digits) != 4:
+        errors.append("`digits` argument must be exactly 4 characters long.")
+    elif not digits.isdecimal():
+        errors.append("`digits` argument must be a decimal.")
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=app.url_for(SELECT_USER_TO_SOURCE[request.endpoint]),
+        )
+
+    assert digits is not None
+
+    code = int(digits)
+
+    create_available = request.endpoint != "admin_login_select_user_get"
+
+    # TODO: Implement select user POST
     return {
-        "source": source.name.lower(),
+        "form": form,
         "code": code,
-        "users": users,
-        "return_link": return_link,
-        "show_create": show_create,
+        "create_user": create_user,
+        "create_available": create_available,
     }
-
-
-@app.post("/check-in")
-@pretty_exception
-async def check_in_post() -> (
-    tuple[AsyncIterator[str], int] | dict[str, object]
-):
-    """Handle main page POST request."""
-    return await handle_phone_post(PhoneInputSource.CHECK_IN)
-
-
-@app.post("/check-out")
-@pretty_exception
-async def check_out_post() -> (
-    tuple[AsyncIterator[str], int] | dict[str, object]
-):
-    """Handle main page POST request."""
-    return await handle_phone_post(PhoneInputSource.CHECK_OUT)
-
-
-@app.post("/admin-signin")
-@pretty_exception
-async def admin_signin_post() -> (
-    tuple[AsyncIterator[str], int] | dict[str, object]
-):
-    """Handle main page POST request."""
-    return await handle_phone_post(PhoneInputSource.ADMIN_SIGNIN)
 
 
 ##@app.post("/")
@@ -447,7 +496,7 @@ def run() -> None:
     hypercorn: dict[str, object] = config.get("hypercorn", {})
 
     ip_address: str | None = None
-    if args.local:
+    if True:  # args.local:
         ip_address = "127.0.0.1"
 
     run_server(

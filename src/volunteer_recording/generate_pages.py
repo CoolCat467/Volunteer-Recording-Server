@@ -158,6 +158,7 @@ def generate_style_css() -> str:
             htmlgen.css(
                 (
                     'input[type="submit"]',
+                    'button[type="submit"]',
                     ".submit_button",
                 ),
                 border=("1.5px", "solid", "black"),
@@ -393,8 +394,8 @@ def generate_root() -> str:
             htmlgen.wrap_tag(
                 "div",
                 htmlgen.create_link(
-                    "/admin-signin",
-                    "Administration signin",
+                    "/admin-login",
+                    "Administration login",
                 ),
                 class_="text_right",
             ),
@@ -405,7 +406,7 @@ def generate_root() -> str:
 
 
 @save_template_as("phone_input")
-def generate_character_simulator() -> str:
+def generate_phone_input() -> str:
     """Generate phone digits input GET page."""
     head = htmlgen.wrap_tag(
         "style",
@@ -463,6 +464,77 @@ def generate_character_simulator() -> str:
         "Enter the last 4 digits of your phone number",
         html,
         head=head,
+    )
+
+
+@save_template_as("select_user")
+def generate_select_user_get() -> str:
+    """Generate select user from list GET page."""
+    user_list = htmlgen.wrap_tag(
+        "p",
+        "TODO: user list<br>{{ user_records|list }}",
+        block=False,
+    )
+
+    ##hidden_digits_field = htmlgen.tag(
+    ##    "input",
+    ##    type_="hidden",
+    ##    name="digits",
+    ##    value=htmlgen.jinja_expression("digits"),
+    ##)
+
+    return_link = htmlgen.jinja_expression("return_link")
+
+    back_link = htmlgen.wrap_tag(
+        "a",
+        "Enter a different code",
+        block=False,
+        class_="submit_button",
+        href=return_link,
+    )
+
+    return_root = htmlgen.wrap_tag(
+        "a",
+        "Return to main page",
+        block=False,
+        class_="submit_button",
+        href="/",
+    )
+
+    create_new_user_button = htmlgen.wrap_tag(
+        "button",
+        "Create new user",
+        block=False,
+        type_="submit",
+        name="create_user",
+    )
+
+    create_new_user_section = htmlgen.jinja_if_block(
+        {"show_create": create_new_user_button},
+    )
+
+    form_content = "\n".join(  # noqa: FLY002
+        (
+            # hidden_digits_field,
+            user_list,
+            "<br>",
+            back_link,
+            create_new_user_section,
+            return_root,
+        ),
+    )
+
+    html = "\n".join((htmlgen.form("select_user", form_content),))
+
+    title_extra = htmlgen.jinja_if_block(
+        {
+            "show_create": " or create a new account",
+        },
+    )
+
+    return template(
+        f"Select your user{title_extra}",
+        html,
     )
 
 

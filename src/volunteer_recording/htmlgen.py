@@ -341,6 +341,7 @@ def form(
     contents: str,
     submit_display: str | None = None,
     form_title: str | None = None,
+    form_action: str | None = None,
 ) -> str:
     """Return an HTML form.
 
@@ -355,6 +356,7 @@ def form(
         contents: Contents of the form, including input fields, text, and or other HTML elements.
         submit_display: Text to display on the submit button for the form.
         form_title: Optional title of the form.
+        form_action: Address to post to.
 
     Returns:
     -------
@@ -368,25 +370,28 @@ def form(
     """
     html = contents
     if submit_display is not None:
-        submit = input_field(
-            f"{form_id}_submit_button",
-            None,
-            field_type="submit",
-            attrs={
-                "value": submit_display,
-            },
+        submit = tag(
+            "input",
+            type_="submit",
+            id_=f"{form_id}_submit_button",
+            value=submit_display,
         )
         html += f"\n<br>\n{submit}"
     title = ""
     if form_title is not None:
         title = wrap_tag("b", form_title, block=False) + "\n"
+    kwargs = {
+        "id": form_id,
+        "name": form_id,
+        "method": "post",
+    }
+    if form_action is not None:
+        kwargs["action"] = form_action
     return title + wrap_tag(
         "form",
         html,
         True,
-        id_=form_id,
-        name=form_id,
-        method="post",
+        **kwargs,
     )
 
 

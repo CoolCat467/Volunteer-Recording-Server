@@ -35,26 +35,33 @@ Main screen
 │ │ Check out button         │ │ -> /check-out
 │ └──────────────────────────┘ |
 │                              │
-│   Administration signin link │ -> /admin-signin
+│    Administration login link │ -> /admin-login
 ╰──────────────────────────────╯
 
 
 Enter last 4 digits of phone number screen
 - /check-in
 - /check-out
-- /admin-signin
+- /admin-login
 ╭──────────────────────────────────────────────╮
 │ Enter the last 4 digits of your phone number │
 │         ┌─┐┌─┐┌─┐┌─┐                         │
 │         └─┘└─┘└─┘└─┘                         │
 │           ╭──────╮                           │
-│           │Submit│                           │ -> /select-user
+│           │Submit│                           │ -> [next action]
 │           ╰──────╯                           │
 ╰──────────────────────────────────────────────╯
+[next action]:
+    /check-in -> /check-in/select-user
+    /check-out -> /check-out/select-user
+    /admin-login -> /admin-login/select-user
+
 
 
 Select user screen
-- /select-user
+- /check-in/select-user
+- /check-out/select-user
+- /admin-login/select-user
 - /admin/edit-times/new-entry/select-user
 ╭────────────────────────────────────────────╮
 │ Select your user [or create a new account] │ # or create if not manager signin
@@ -102,7 +109,8 @@ Volunteer checkout category
 
 
 Create user
-- /create-user
+- /check-in/create-user
+- /check-out/create-user
 ╭──────────────────────────────────╮
 │ Please enter your information    │
 │ First name      Last name        │ # remember we got their last 4 phone number from earlier screen

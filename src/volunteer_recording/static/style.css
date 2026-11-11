@@ -59,7 +59,7 @@ code {
   display: inline-block;
   white-space: nowrap;
 }
-input[type="submit"], .submit_button {
+input[type="submit"], button[type="submit"], .submit_button {
   border: 1.5px solid black;
   border-radius: 4px;
   padding: 0.5rem;

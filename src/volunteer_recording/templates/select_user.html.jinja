@@ -1,0 +1,15 @@
+{% extends "base.html.jinja" %}
+{% block title %}Select your user{% if show_create %}
+ or create a new account
+{% endif %}{% endblock title %}
+{% block body %}
+<form id="select_user" name="select_user" method="post">
+  <p>TODO: user list<br>{{ user_records|list }}</p>
+  <br>
+  <a class="submit_button" href="{{ return_link }}">Enter a different code</a>
+  {% if show_create %}
+  <button type="submit" name="create_user">Create new user</button>
+  {% endif %}
+  <a class="submit_button" href="/">Return to main page</a>
+</form>
+{% endblock body %}

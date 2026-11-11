@@ -377,7 +377,7 @@ def test_form() -> None:
 <form id="form_id" name="form_id" method="post">
   dis content woo
   <br>
-  <input type="submit" id="form_id_submit_button" name="form_id_submit_button" value="hihi">
+  <input type="submit" id="form_id_submit_button" value="hihi">
 </form>"""
     )
 
@@ -388,7 +388,7 @@ def test_form_no_title() -> None:
         == """<form id="form_id" name="form_id" method="post">
   dis content woo
   <br>
-  <input type="submit" id="form_id_submit_button" name="form_id_submit_button" value="hihi">
+  <input type="submit" id="form_id_submit_button" value="hihi">
 </form>"""
     )
 
