@@ -51,6 +51,7 @@ from quart import request
 from quart.templating import stream_template
 from quart_trio import QuartTrio
 
+from volunteer_recording import database_bridge
 from volunteer_recording.elapsed import combine_end
 from volunteer_recording.server_utils import (
     find_ip,
@@ -74,6 +75,7 @@ CACHE_PATH: Final = trio.Path(
     platformdirs.user_cache_path(FILE_TITLE, __author__),
 )
 MAIN_CONFIG: Final = CONFIG_PATH / "config.toml"
+USER_DATA: Final = DATA_PATH / "users.json"
 
 T = TypeVar("T")
 
@@ -81,13 +83,15 @@ T = TypeVar("T")
 class AppData(TypedDict):
     """Global shared application data."""
 
+    users: database_bridge.UserDatabase
+
 
 app: Final = QuartTrio(  # pylint: disable=invalid-name
     __name__,
     static_folder="static",
     template_folder="templates",
 )
-APP_DATA = AppData({})
+APP_DATA = AppData(users=database_bridge.UserDatabase(USER_DATA))
 
 
 @app.get("/")
@@ -159,10 +163,10 @@ async def handle_phone_post(
         )
 
     assert isinstance(digits, str)
-    number = int(digits)
+    code = int(digits)
 
     # TODO: Get users from number
-    users: list[object] = []
+    users = APP_DATA["users"].yield_records_from_code(code)
 
     return_link = "/" + "-".join(source.name.lower().split("_"))
     show_create = source in (
@@ -180,7 +184,7 @@ async def handle_phone_post(
 
     return {
         "source": source.name.lower(),
-        "number": number,
+        "code": code,
         "users": users,
         "return_link": return_link,
         "show_create": show_create,
@@ -253,9 +257,10 @@ async def admin_signin_post() -> (
 async def async_run_server(
     serve_partial: partial[Coroutine[Any, Any, None]],
 ) -> None:
-    """Call server partial while managing httpx client."""
-    async with trio.open_nursery() as nursery:
-        nursery.start_soon(serve_partial)
+    """Call server partial while managing databases."""
+    async with APP_DATA["users"]:
+        async with trio.open_nursery() as nursery:
+            nursery.start_soon(serve_partial)
 
 
 def run_server(
