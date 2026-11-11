@@ -124,7 +124,6 @@ async def phone_input_post() -> (
     multi_dict = await request.form
     form = multi_dict.to_dict()
 
-    print(f"[phone_input_post] {form = }")
     digits = form.get("digits")
 
     assert request.endpoint is not None
@@ -157,17 +156,22 @@ async def phone_input_post() -> (
 async def stream_select_user(
     code: int,
     return_link: str,
-    show_create: bool = True,
+    is_admin: bool = False,
 ) -> AsyncIterator[str]:
     """Return select user template stream."""
     # Get users from code
-    user_records = APP_DATA["users"].yield_records_from_code(code)
+    if is_admin:
+        user_records = APP_DATA["users"].yield_admin_records_from_code(
+            code=code,
+        )
+    else:
+        user_records = APP_DATA["users"].yield_records_from_code(code=code)
 
     return await stream_template(
         "select_user.html.jinja",
         user_records=user_records,
         return_link=return_link,
-        show_create=show_create,
+        show_create=not is_admin,
     )
 
 
@@ -215,12 +219,12 @@ async def select_user_get() -> (
 
     assert digits is not None
 
-    show_create = request.endpoint != "admin_login_select_user_get"
+    is_admin = request.endpoint == "admin_login_select_user_get"
 
     return await stream_select_user(
         code=int(digits),
         return_link=app.url_for(request.endpoint),
-        show_create=show_create,
+        is_admin=is_admin,
     )
 
 
@@ -313,8 +317,47 @@ async def create_user_get() -> tuple[AsyncIterator[str], int]:
     if digits is not None:
         autofill_code = int(digits)
 
-    # TODO: Implement create_user_get
+    # TODO: Send create user template
     raise NotImplementedError(f"{autofill_code = }")
+
+
+async def check_in_user_get(
+    user_id: int,
+) -> AsyncIterator[str]:
+    """Handle user check-in GET request."""
+    # User id exists, checked in user_selected_get
+
+    # TODO: Add check-in stamp for user
+    raise NotImplementedError("user_id = }")
+
+
+async def check_out_user_get(
+    user_id: int,
+) -> AsyncIterator[str]:
+    """Handle user check-out GET request."""
+    # User id exists, checked in user_selected_get
+
+    # TODO: Show check-out page for user
+    raise NotImplementedError("user_id = }")
+
+
+async def admin_login_user_get(
+    user_id: int,
+    is_admin: bool,
+) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
+    """Handle administrator login GET request."""
+    # User id exists, checked in user_selected_get
+
+    if not is_admin:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "User is not an administrator.",
+            return_link=app.url_for("admin_login_get"),
+        )
+
+    # TODO: Show admin login page for user
+    raise NotImplementedError("user_id = }")
 
 
 @app.get("/check-in/user/<int:user_id>", endpoint="check_in_user_get")
@@ -323,21 +366,28 @@ async def create_user_get() -> tuple[AsyncIterator[str], int]:
 @pretty_exception
 async def user_selected_get(
     user_id: int,
-) -> tuple[AsyncIterator[str], int] | dict[str, int]:
+) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
     """Handle user selected GET request."""
     assert request.endpoint is not None
     user = APP_DATA["users"].get(user_id)
 
     if user is None:
         return await get_exception_page(
-            404,  # bad request
+            404,  # not found
             "Not Found",
             "User not found.",
             return_link=app.url_for(ENDPOINT_TO_SOURCE[request.endpoint]),
         )
 
-    # TODO: Implement user_selected_get
-    raise NotImplementedError(f"{user_id = }")
+    if request.endpoint == "check_in_user_get":
+        return await check_in_user_get(user_id)
+    if request.endpoint == "check_out_user_get":
+        return await check_out_user_get(user_id)
+    if request.endpoint == "admin_login_user_get":
+        return await admin_login_user_get(user_id, user.is_admin)
+
+    # Should be unreachable
+    raise NotImplementedError(f"{request.endpoint = }")
 
 
 ##@app.post("/")

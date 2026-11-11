@@ -72,8 +72,19 @@ class UserDatabase(Database[User]):
         self,
         code: int,
     ) -> Generator[Record[User]]:
-        """Yield user records with given code."""
-        return self.yield_entries_by_attributes(code=code)
+        """Yield non-retired user records with given code."""
+        return self.yield_entries_by_attributes(code=code, retired=False)
+
+    def yield_admin_records_from_code(
+        self,
+        code: int,
+    ) -> Generator[Record[User]]:
+        """Yield non-retired administrator user records with given code."""
+        return self.yield_entries_by_attributes(
+            code=code,
+            is_admin=True,
+            retired=False,
+        )
 
 
 async def run() -> None:

@@ -548,7 +548,7 @@ def jinja_if_block(conditions: dict[str, str], block: bool = True) -> str:
 
 def jinja_for_loop(
     results: Iterable[str],
-    iterate: str,
+    iterate: Iterable[object] | str,
     content: str,
     filter_: str | None = None,
     else_content: str | None = None,
@@ -565,6 +565,8 @@ def jinja_for_loop(
     filter_items = ""
     if filter_:
         filter_items = f" if {filter_}"
+    if not isinstance(iterate, str):
+        iterate = "(" + ", ".join(map(repr, iterate)) + ")"
     for_tag = jinja_statement(f"for {result_items} in {iterate}{filter_items}")
     # content = indent(2, content)
     end = jinja_statement("endfor")
@@ -754,7 +756,7 @@ def jinja_number_plural(
 
 def jinja_table_row_elements(
     row_results: Iterable[str],
-    row_iterate: str,
+    row_iterate: Iterable[str] | str,
     row_content: str,
     row_filter: str | None = None,
     row_else_content: str | None = None,
@@ -787,7 +789,7 @@ def jinja_table_row_elements(
 
 def jinja_table_row(
     row_results: Iterable[str],
-    row_iterate: str,
+    row_iterate: Iterable[str] | str,
     row_content: str,
     row_filter: str | None = None,
 ) -> str:
@@ -809,9 +811,9 @@ def jinja_table_row(
 
 def jinja_table(
     caption: str | None = None,
-    header_iterate: str | None = None,
+    header_iterate: Iterable[str] | None = None,
     body: str | None = None,
-    footer_iterate: str | None = None,
+    footer_iterate: Iterable[str] | None = None,
 ) -> str:
     """Generate jinja table nested for loop blocks."""
     table_contents = []
