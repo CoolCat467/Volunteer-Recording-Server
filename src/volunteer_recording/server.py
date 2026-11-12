@@ -80,8 +80,14 @@ CACHE_PATH: Final = trio.Path(
 MAIN_CONFIG: Final = CONFIG_PATH / "config.toml"
 USER_DATA: Final = DATA_PATH / "users.json"
 CALENDAR_DATA: Final = DATA_PATH / "calendar.json"
+PASSWORD_DATA: Final = DATA_PATH / "password.json"
 
 T = TypeVar("T")
+
+
+PEPPER = (
+    "Temporary insecure pepper, should probably use a .env file or something?"
+)
 
 
 class AppData(TypedDict):
@@ -99,6 +105,7 @@ app: Final = QuartTrio(  # pylint: disable=invalid-name
 APP_DATA = AppData(
     users=database_bridge.UserDatabase(USER_DATA),
     calendar=database_bridge.CalendarDatabase(CALENDAR_DATA),
+    password=database_bridge.PasswordDatabase(PASSWORD_DATA, PEPPER),
 )
 
 
@@ -615,7 +622,7 @@ async def async_run_server(
     serve_partial: partial[Coroutine[Any, Any, None]],
 ) -> None:
     """Call server partial while managing databases."""
-    async with APP_DATA["users"], APP_DATA["calendar"]:
+    async with APP_DATA["users"], APP_DATA["calendar"], APP_DATA["password"]:
         if len(APP_DATA["users"]) != len(APP_DATA["calendar"]):
             raise RuntimeError(
                 "number of user records does not match number of calendar records",

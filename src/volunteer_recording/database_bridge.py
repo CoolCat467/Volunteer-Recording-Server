@@ -34,8 +34,10 @@ from typing import TYPE_CHECKING, Any, NamedTuple, NotRequired, Self, TypedDict
 import orjson
 import trio
 
+from volunteer_recording import security
 from volunteer_recording.serializable import (
     Database,
+    MappingDatabase,
     Record as Record,
 )
 
@@ -44,6 +46,7 @@ if TYPE_CHECKING:
         Generator,
         Iterable,
     )
+    from os import PathLike
 
 
 class SerializedUserRecord(TypedDict):
@@ -343,9 +346,6 @@ class CalendarDatabase(Database[Calendar]):
 
     __slots__ = ()
 
-    def deserialize_key(self, key: str) -> int:  # noqa: D102
-        return int(key)
-
     def deserialize_entry(self, entry: SerializedCalendarRecord) -> Calendar:  # noqa: D102
         return Calendar.deserialize(entry)
 
@@ -359,6 +359,43 @@ class CalendarDatabase(Database[Calendar]):
             | orjson.OPT_OMIT_MICROSECONDS
             | orjson.OPT_NON_STR_KEYS,
         )
+
+
+class PasswordDatabase(MappingDatabase[int, str]):
+    """Database of password records."""
+
+    __slots__ = ("pepper",)
+
+    def __init__(self, path: PathLike[str] | str, pepper: str) -> None:  # noqa: D107
+        super().__init__(path)
+        self.pepper = pepper
+
+    def deserialize_key(self, key: str) -> int:  # noqa: D102
+        return int(key)
+
+    def deserialize_entry(self, entry: str) -> str:  # noqa: D102
+        return entry
+
+    def serialize(self) -> bytes:
+        """Return serialized data to write to file."""
+        return orjson.dumps(
+            self.data,
+            option=orjson.OPT_APPEND_NEWLINE | orjson.OPT_NON_STR_KEYS,
+        )
+
+    def set_password(self, user_id: int, new_password: str) -> None:
+        """Set password for given user id to new password."""
+        self[user_id] = security.create_new_login_credentials(
+            new_password,
+            self.pepper,
+        )
+
+    async def check_password(self, user_id: int, password: str) -> bool:
+        """Return if given password is correct for given user."""
+        record = self.get(user_id)
+        if record is None:
+            raise KeyError("user not found")
+        return await security.compare_hash(password, record, self.pepper)
 
 
 async def run() -> None:
