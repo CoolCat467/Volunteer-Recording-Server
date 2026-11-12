@@ -27,9 +27,17 @@ __license__ = "GNU General Public License Version 3"
 
 import datetime as dt
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import IntEnum, auto
-from typing import TYPE_CHECKING, Any, NamedTuple, NotRequired, Self, TypedDict
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    NamedTuple,
+    NotRequired,
+    Self,
+    TypedDict,
+    Unpack,
+)
 
 import orjson
 import trio
@@ -60,6 +68,17 @@ class SerializedUserRecord(TypedDict):
     is_admin: NotRequired[bool]
 
 
+class UserRecordKwargs(TypedDict, total=False):
+    """User record keyword arguments."""
+
+    firstname: str
+    lastname: str
+    date_of_birth: dt.date
+    code: int
+    retired: bool
+    is_admin: bool
+
+
 @dataclass(slots=True, frozen=True)
 class User:
     """User record."""
@@ -82,6 +101,10 @@ class User:
             retired=dict_["retired"],
             is_admin=dict_["is_admin"],
         )
+
+    def get_modified_copy(self, **changes: Unpack[UserRecordKwargs]) -> Self:
+        """Return new copy given changes."""
+        return replace(self, **changes)
 
 
 class UserDatabase(Database[User]):

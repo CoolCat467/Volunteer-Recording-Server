@@ -33,24 +33,36 @@ from collections.abc import (
     Coroutine,
     Iterable,
 )
+from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
+from os import getenv
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
     Final,
     TypedDict,
-    TypeVar,
 )
 from urllib.parse import urlencode
+from uuid import UUID, uuid4
 
 import platformdirs
 import trio
+from dotenv import load_dotenv
 from hypercorn.config import Config
 from hypercorn.trio import serve
 from quart import request
 from quart.templating import stream_template
+from quart_auth import (
+    AuthUser,
+    QuartAuth,
+    Unauthorized,
+    current_user,
+    login_required,
+    login_user,
+    logout_user,
+)
 from quart_trio import QuartTrio
 
 from volunteer_recording import database_bridge
@@ -79,24 +91,66 @@ CACHE_PATH: Final = trio.Path(
     platformdirs.user_cache_path(FILE_TITLE, __author__),
 )
 MAIN_CONFIG: Final = CONFIG_PATH / "config.toml"
-USER_DATA: Final = DATA_PATH / "users.json"
+USER_DATA: Final = DATA_PATH / "user.json"
 CALENDAR_DATA: Final = DATA_PATH / "calendar.json"
 PASSWORD_DATA: Final = DATA_PATH / "password.json"
 
-T = TypeVar("T")
+load_dotenv()
+PEPPER: Final = getenv("COOKIE_SECRET", "")
 
 
-PEPPER = (
-    "Temporary insecure pepper, should probably use a .env file or something?"
-)
+def datetime_now_tomorrow() -> dt.datetime:
+    """Return datetime of one day from now."""
+    return dt.datetime.now(dt.UTC) + dt.timedelta(days=1)
+
+
+@dataclass(slots=True, frozen=True)
+class Session:
+    """Session data."""
+
+    user_id: int
+    expires: dt.datetime = field(default_factory=datetime_now_tomorrow)
+
+
+@dataclass(slots=True, frozen=True)
+class SessionDatabase:
+    """Session database."""
+
+    sessions: dict[UUID, Session] = field(default_factory=dict)
+
+    def add_session(self, session: Session) -> UUID:
+        """Return UUID of new session after adding it to the database."""
+        uuid = uuid4()
+        self.sessions[uuid] = session
+        return uuid
+
+    def create_session(self, user_id: int) -> UUID:
+        """Return UUID of new session for given user id."""
+        session = Session(user_id)
+        return self.add_session(session)
+
+    def find_session_uuid(self, uuid: UUID) -> Session | None:
+        """Return session from uuid or return None on failure."""
+        return self.sessions.get(uuid)
+
+    def find_session_user_id(
+        self,
+        user_id: int,
+    ) -> tuple[UUID, Session] | None:
+        """Return session from user id or None on failure."""
+        for uuid, session in self.sessions.items():
+            if session.user_id == user_id:
+                return uuid, session
+        return None
 
 
 class AppData(TypedDict):
     """Global shared application data."""
 
-    users: database_bridge.UserDatabase
+    user: database_bridge.UserDatabase
     calendar: database_bridge.CalendarDatabase
     password: database_bridge.PasswordDatabase
+    session: SessionDatabase
 
 
 app: Final = QuartTrio(  # pylint: disable=invalid-name
@@ -104,10 +158,12 @@ app: Final = QuartTrio(  # pylint: disable=invalid-name
     static_folder="static",
     template_folder="templates",
 )
+QuartAuth(app)
 APP_DATA = AppData(
-    users=database_bridge.UserDatabase(USER_DATA),
+    user=database_bridge.UserDatabase(USER_DATA),
     calendar=database_bridge.CalendarDatabase(CALENDAR_DATA),
     password=database_bridge.PasswordDatabase(PASSWORD_DATA, PEPPER),
+    session=SessionDatabase(),
 )
 
 
@@ -202,13 +258,13 @@ async def stream_select_user(
     is_admin: bool = False,
 ) -> AsyncIterator[str]:
     """Return select user template stream."""
-    # Get users from code
+    # Get user from code
     if is_admin:
-        user_records = APP_DATA["users"].yield_admin_records_from_code(
+        user_records = APP_DATA["user"].yield_admin_records_from_code(
             code=code,
         )
     else:
-        user_records = APP_DATA["users"].yield_records_from_code(code=code)
+        user_records = APP_DATA["user"].yield_records_from_code(code=code)
 
     return await stream_template(
         "select_user.html.jinja",
@@ -407,7 +463,7 @@ def create_new_user(
     code: int,
 ) -> int:
     """Return new user id from creating user."""
-    user_db = APP_DATA["users"]
+    user_db = APP_DATA["user"]
     calendar_db = APP_DATA["calendar"]
 
     if len(user_db) != len(calendar_db):
@@ -607,8 +663,16 @@ async def admin_login_user_get(
             return_link="/admin-login",
         )
 
-    # TODO: Show admin login page for user
-    raise NotImplementedError("user_id = }")
+    bad_password = request.args.get("bad_password") is not None
+
+    error_message: str | None = None
+    if bad_password:
+        error_message = "Given password was incorrect."
+
+    return await stream_template(
+        "prompt_password.html.jinja",
+        error_message=error_message,
+    )
 
 
 @app.get(
@@ -628,7 +692,7 @@ async def user_selected_get(
     user_id: int,
 ) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
     """Handle user selected GET request."""
-    user = APP_DATA["users"].get(user_id)
+    user = APP_DATA["user"].get(user_id)
 
     select_type = get_select_type_from_full_path(request.full_path)
     source_url = select_type.value
@@ -652,13 +716,38 @@ async def user_selected_get(
     raise NotImplementedError(f"{request.endpoint = }")
 
 
+async def check_password_correct(user_id: int, password: str) -> bool:
+    """Return if given password is correct for given user."""
+    password_db = APP_DATA["password"]
+    return await password_db.check_password(user_id, password)
+
+
+def perform_login_user(user_id: int) -> UUID:
+    """Return session UUID after performing login user."""
+    session_db = APP_DATA["session"]
+    uuid = session_db.create_session(user_id)
+    login_user(AuthUser(str(uuid)))
+    return uuid
+
+
+def get_user_id_from_session() -> int:
+    """Return user id from session. If not found, logout and raise Unauthorized."""
+    assert current_user.is_authenticated
+    session_db = APP_DATA["session"]
+    session = session_db.find_session_uuid(UUID(current_user.auth_id))
+    if session is None:
+        logout_user()
+        raise Unauthorized()
+    return session.user_id
+
+
 @app.post(f"{SelectUserType.ADMIN_LOGIN.value}/user/<int:user_id>")
 @pretty_exception
 async def admin_login_user_post(
     user_id: int,
-) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
-    """Handle user selected GET request."""
-    user = APP_DATA["users"].get(user_id)
+) -> tuple[AsyncIterator[str], int] | WerkzeugResponse:
+    """Handle user administrator login POST request."""
+    user = APP_DATA["user"].get(user_id)
 
     if user is None:
         return await get_exception_page(
@@ -673,8 +762,54 @@ async def admin_login_user_post(
 
     password = form.get("password")
 
-    print(f"{password = }")
-    raise NotImplementedError(f"{request.endpoint = }")
+    errors = []
+    if not password:
+        errors.append("Missing <code>password</code> field.")
+    elif not isinstance(password, str):
+        errors.append(
+            "<code>password</code> field type must be a string.",
+        )
+
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=request.full_path.removesuffix("?"),
+        )
+
+    assert password is not None
+
+    if not await check_password_correct(user_id, password):
+        return app.redirect(f"{request.path}?bad_password=1")
+
+    perform_login_user(user_id)
+
+    return app.redirect("/admin")
+
+
+@app.get("/admin")
+@pretty_exception
+@login_required
+async def handle_admin_get() -> AsyncIterator[str]:
+    """Handle administrator root GET request."""
+    print(f"{current_user.auth_id = }")
+    logout_user()
+    raise NotImplementedError(f"{current_user.auth_id = }")
+
+
+def admin_reset_password(user_id: int, password: str) -> None:
+    """Set the password for given user to given value."""
+    password_db = APP_DATA["password"]
+    password_db.set_password(user_id, password)
+
+
+def grant_admin_privileges(user_id: int, password: str) -> None:
+    """Grant admin privileges to given user and set their password."""
+    user_db = APP_DATA["user"]
+    user_db[user_id] = user_db[user_id].get_modified_copy(is_admin=True)
+
+    admin_reset_password(user_id, password)
 
 
 ##@app.post("/")
@@ -751,14 +886,17 @@ async def async_run_server(
     serve_partial: partial[Coroutine[Any, Any, None]],
 ) -> None:
     """Call server partial while managing databases."""
-    async with APP_DATA["users"], APP_DATA["calendar"], APP_DATA["password"]:
-        if len(APP_DATA["users"]) != len(APP_DATA["calendar"]):
+    async with APP_DATA["user"], APP_DATA["calendar"], APP_DATA["password"]:
+        if len(APP_DATA["user"]) != len(APP_DATA["calendar"]):
             raise RuntimeError(
                 "number of user records does not match number of calendar records",
             )
-        if not APP_DATA["users"]:
-            create_new_user("Admin", "N/A", dt.date(1970, 1, 1), 0)
-            print("Creating admin user...")
+        if not APP_DATA["user"]:
+            grant_admin_privileges(
+                create_new_user("Admin", "N/A", dt.date.today(), 0),
+                "admin",
+            )
+            print("Created admin user with password `admin`")
         async with trio.open_nursery() as nursery:
             nursery.start_soon(serve_partial)
 
@@ -839,6 +977,7 @@ def run_server(
             print(f"Serving on {secure_locations} securely")
 
         app.config["EXPLAIN_TEMPLATE_LOADING"] = False
+        app.config["QUART_AUTH_DURATION"] = 24 * 60 * 60  # 1 day
 
         # We want pretty html, no jank
         app.jinja_options = {
@@ -847,6 +986,7 @@ def run_server(
         }
 
         app.add_url_rule("/<path:filename>", "static", app.send_static_file)
+        app.secret_key = PEPPER
 
         config_obj = Config.from_mapping(config)
 

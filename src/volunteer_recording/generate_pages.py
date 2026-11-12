@@ -792,6 +792,80 @@ def generate_success_page() -> str:
     )
 
 
+@save_template_as("prompt_password")
+def generate_prompt_password_get() -> str:
+    """Generate prompt password page."""
+    error_message_content = htmlgen.wrap_tag(
+        "i",
+        htmlgen.jinja_expression("error_message"),
+        block=False,
+        style="".join(htmlgen.css_style(color="red"))[:-1],
+    )
+
+    error_message = htmlgen.jinja_if_block(
+        {
+            "error_message": error_message_content,
+        },
+    )
+
+    back_link = htmlgen.wrap_tag(
+        "a",
+        "Back to select user",
+        block=False,
+        class_="submit_button",
+        href="/admin-login",
+    )
+
+    return_root = htmlgen.wrap_tag(
+        "a",
+        "Return to main page",
+        block=False,
+        class_="submit_button",
+        href="/",
+    )
+
+    submit_button = htmlgen.wrap_tag(
+        "button",
+        "Submit",
+        block=False,
+        type_="submit",
+    )
+
+    contents = "\n".join(
+        (
+            htmlgen.input_field(
+                "password",
+                "Password",
+                field_type="password",
+                attrs={
+                    "required": True,
+                    "autofocus": True,
+                },
+            ),
+            htmlgen.tag("br"),
+            htmlgen.tag("br"),
+            back_link,
+            return_root,
+            submit_button,
+        ),
+    )
+
+    body = "\n".join(
+        (
+            error_message,
+            htmlgen.form(
+                "password_prompt",
+                contents,
+            ),
+        ),
+    )
+
+    return template(
+        "Enter Password",
+        body,
+    )
+
+
 def matches_disk_files(new_files: dict[Path, str]) -> bool:
     """Return if all new file contents match old file contents.
 
