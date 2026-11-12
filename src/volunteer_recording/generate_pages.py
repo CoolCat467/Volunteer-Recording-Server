@@ -715,6 +715,83 @@ def generate_create_user_get() -> str:
     )
 
 
+@save_template_as("success")
+def generate_success_page() -> str:
+    """Generate success response page."""
+    refreshes_after = htmlgen.jinja_expression("refreshes_after|default(10)")
+    refresh_content = f"{refreshes_after};url=/"
+
+    custom_css = "\n".join(
+        (
+            htmlgen.css(
+                ".success_check",
+                display="block",
+                color="#198754",
+                font_size="5rem",
+                line_height=1,
+                margin=("1rem", "0"),
+            ),
+            htmlgen.css(
+                ".box",
+                border=("2px", "solid", "limegreen"),
+            ),
+        ),
+    )
+
+    head = "\n".join(
+        (
+            htmlgen.tag("meta", http_equiv="refresh", content=refresh_content),
+            htmlgen.wrap_tag("style", custom_css),
+        ),
+    )
+
+    refresh_time_plural = htmlgen.jinja_number_plural(
+        "refreshes_after|default(10)",
+        "second",
+    )
+    refresh_time_display = f"{refreshes_after} {refresh_time_plural}"
+
+    return_root = htmlgen.wrap_tag(
+        "a",
+        "Return to main page",
+        block=False,
+        class_="submit_button",
+        href="/",
+    )
+
+    message_content = htmlgen.wrap_tag(
+        "p",
+        htmlgen.jinja_expression("message"),
+        block=False,
+    )
+    content = "\n".join(
+        (
+            message_content,
+            htmlgen.wrap_tag(
+                "span",
+                "✓",
+                block=False,
+                class_="success_check center",
+                aria_label="Success",
+            ),
+            htmlgen.tag("br"),
+            return_root,
+            htmlgen.tag("hr"),
+            htmlgen.wrap_tag(
+                "i",
+                f"This page will automatically refresh after {refresh_time_display}.",
+                block=False,
+            ),
+        ),
+    )
+    body = htmlgen.contain_in_box(content)
+    return template(
+        "Success",
+        body,
+        head=head,
+    )
+
+
 def matches_disk_files(new_files: dict[Path, str]) -> bool:
     """Return if all new file contents match old file contents.
 

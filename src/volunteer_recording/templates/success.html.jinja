@@ -1,0 +1,27 @@
+{% extends "base.html.jinja" %}
+{% block title %}Success{% endblock title %}
+{% block head %}
+<meta http-equiv="refresh" content="{{ refreshes_after|default(10) }};url=/">
+<style>
+  .success_check {
+    display: block;
+    color: #198754;
+    font-size: 5rem;
+    line-height: 1;
+    margin: 1rem 0;
+  }
+  .box {
+    border: 2px solid limegreen;
+  }
+</style>
+{% endblock head %}
+{% block body %}
+<div class="box">
+  <p>{{ message }}</p>
+  <span class="success_check center" aria-label="Success">✓</span>
+  <br>
+  <a class="submit_button" href="/">Return to main page</a>
+  <hr>
+  <i>This page will automatically refresh after {{ refreshes_after|default(10) }} second{% if refreshes_after|default(10) > 1 %}s{% elif refreshes_after|default(10) == 0 %}s{% endif %}.</i>
+</div>
+{% endblock body %}

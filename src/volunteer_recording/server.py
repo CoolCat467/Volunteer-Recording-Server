@@ -340,7 +340,7 @@ async def create_user_get() -> (
         # autofill_firstname=autofill_firstname,
         # autofill_lastname=autofill_lastname,
         # autofill_birthday=autofill_birthday,
-        autofill_digits=autofill_digits,
+        autofill_digits=f"{autofill_digits:04}",
     )
 
 
@@ -461,41 +461,69 @@ async def create_user_post() -> (
     )
 
     if request.endpoint == "check_in_create_user_post":
-        return await check_in_user_get(user_id)
+        return await check_in_user_get(user_id, created_user=True)
     if request.endpoint == "check_out_create_user_post":
-        return await check_out_user_get(user_id)
+        return await check_out_user_get(user_id, created_user=True)
 
     raise NotImplementedError(f"{request.endpoint = }")
 
 
+def user_add_timestamp(
+    user_id: int,
+    type_: database_bridge.StampType = database_bridge.StampType.CHECK_IN,
+) -> None:
+    """Add a timestamp for the given user. User ID must be valid."""
+    calendar_db = APP_DATA["calendar"]
+    user_calendar = calendar_db[user_id]
+
+    user_calendar.add_timestamp(
+        database_bridge.StampType.CHECK_IN,
+        dt.datetime.now(dt.UTC),
+    )
+
+
 async def check_in_user_get(
     user_id: int,
+    created_user: bool = False,
 ) -> AsyncIterator[str]:
     """Handle user check-in GET request."""
     # User id exists, checked in user_selected_get
 
-    calendar_db = APP_DATA["calendar"]
-    user_calendar = calendar_db[user_id]
+    # Add check-in stamp for user
+    user_add_timestamp(user_id, database_bridge.StampType.CHECK_IN)
 
-    # TODO: Add check-in stamp for user
-    # raise NotImplementedError("user_id = }")
-    ##message = "Successfully created user!"
-    ##
-    ##return await stream_template(
-    ##    "success.html.jinja",
-    ##    message=message,
-    ##)
-    return repr(user_calendar)
+    message = "Successfully checked in!"
+    if created_user:
+        message = "Successfully created new user and checked in!"
+
+    return await stream_template(
+        "success.html.jinja",
+        message=message,
+        # refreshes_after=10,
+    )
 
 
 async def check_out_user_get(
     user_id: int,
+    created_user: bool = False,
 ) -> AsyncIterator[str]:
     """Handle user check-out GET request."""
     # User id exists, checked in user_selected_get
 
-    # TODO: Show check-out page for user
-    raise NotImplementedError("user_id = }")
+    # TODO: category, for now just do checkout
+
+    # Add check-in stamp for user
+    user_add_timestamp(user_id, database_bridge.StampType.CHECKOUT)
+
+    message = "Successfully checked out!"
+    if created_user:
+        message = "Successfully created new user and checked out!"
+
+    return await stream_template(
+        "success.html.jinja",
+        message=message,
+        # refreshes_after=10,
+    )
 
 
 async def admin_login_user_get(
