@@ -33,6 +33,7 @@ from collections.abc import (
     Coroutine,
     Iterable,
 )
+from enum import Enum
 from functools import partial
 from pathlib import Path
 from typing import (
@@ -95,6 +96,7 @@ class AppData(TypedDict):
 
     users: database_bridge.UserDatabase
     calendar: database_bridge.CalendarDatabase
+    password: database_bridge.PasswordDatabase
 
 
 app: Final = QuartTrio(  # pylint: disable=invalid-name
@@ -117,18 +119,45 @@ async def root_get() -> AsyncIterator[str]:
     )
 
 
-@app.get("/check-in", endpoint="check_in_get")
-@app.get("/check-out", endpoint="check_out_get")
-@app.get("/admin-login", endpoint="admin_login_get")
+class SelectUserType(Enum):
+    """Select user type."""
+
+    CHECK_IN = "/check-in"
+    CHECK_OUT = "/check-out"
+    ADMIN_LOGIN = "/admin-login"
+
+
+def get_select_type_from_endpoint(endpoint: str) -> SelectUserType:
+    """Return select user type from endpoint name."""
+    if endpoint.startswith("check_in"):
+        return SelectUserType.CHECK_IN
+    if endpoint.startswith("check_out"):
+        return SelectUserType.CHECK_OUT
+    if endpoint.startswith("admin_login"):
+        return SelectUserType.ADMIN_LOGIN
+
+    assert len(SelectUserType) == 3
+    raise NotImplementedError(endpoint)
+
+
+def get_select_type_from_full_path(full_path: str) -> SelectUserType:
+    """Return select user type from endpoint name."""
+    parts = full_path.removeprefix("/").removesuffix("?").split("/", 1)
+    return SelectUserType(f"/{parts[0]}")
+
+
+@app.get(SelectUserType.CHECK_IN.value, endpoint="check_in_get")
+@app.get(SelectUserType.CHECK_OUT.value, endpoint="check_out_get")
+@app.get(SelectUserType.ADMIN_LOGIN.value, endpoint="admin_login_get")
 @pretty_exception
 async def phone_input_get() -> AsyncIterator[str]:
     """Render the phone input page."""
     return await stream_template("phone_input.html.jinja")
 
 
-@app.post("/check-in", endpoint="check_in_post")
-@app.post("/check-out", endpoint="check_out_post")
-@app.post("/admin-login", endpoint="admin_login_post")
+@app.post(SelectUserType.CHECK_IN.value, endpoint="check_in_post")
+@app.post(SelectUserType.CHECK_OUT.value, endpoint="check_out_post")
+@app.post(SelectUserType.ADMIN_LOGIN.value, endpoint="admin_login_post")
 @pretty_exception
 async def phone_input_post() -> (
     tuple[AsyncIterator[str], int] | WerkzeugResponse
@@ -139,18 +168,19 @@ async def phone_input_post() -> (
 
     digits = form.get("digits")
 
-    assert request.endpoint is not None
-    source_page = app.url_for(request.endpoint)
+    source_page = request.full_path.removesuffix("?")
 
     errors = []
     if not digits:
-        errors.append("Missing `digits` field.")
+        errors.append("Missing <code>digits</code> field.")
     if not isinstance(digits, str):
-        errors.append("`digits` field type must be a string.")
+        errors.append("<code>digits</code> field type must be a string.")
     elif len(digits) != 4:
-        errors.append("`digits` field must be exactly 4 characters long.")
+        errors.append(
+            "<code>digits</code> field must be exactly 4 characters long.",
+        )
     elif not digits.isdecimal():
-        errors.append("`digits` field value must be a decimal.")
+        errors.append("<code>digits</code> field value must be a decimal.")
     if errors:
         return await get_exception_page(
             400,  # bad request
@@ -188,73 +218,74 @@ async def stream_select_user(
     )
 
 
-ENDPOINT_TO_SOURCE: Final = {
-    "check_in_select_user_get": "check_in_get",
-    "check_in_select_user_post": "check_in_get",
-    "check_in_user_get": "check_in_get",
-    "check_in_create_user_get": "check_in_get",
-    "check_in_create_user_post": "check_in_get",
-    "check_out_select_user_get": "check_out_get",
-    "check_out_select_user_post": "check_out_get",
-    "check_out_create_user_post": "check_out_get",
-    "check_out_user_get": "check_out_get",
-    "check_out_create_user_get": "check_out_get",
-    "admin_login_select_user_get": "admin_login_get",
-    "admin_login_select_user_post": "admin_login_get",
-    "admin_login_user_get": "admin_login_get",
-}
-
-
-@app.get("/check-in/select-user", endpoint="check_in_select_user_get")
-@app.get("/check-out/select-user", endpoint="check_out_select_user_get")
-@app.get("/admin-login/select-user", endpoint="admin_login_select_user_get")
+@app.get(
+    f"{SelectUserType.CHECK_IN.value}/select-user",
+    endpoint="check_in_select_user_get",
+)
+@app.get(
+    f"{SelectUserType.CHECK_OUT.value}/select-user",
+    endpoint="check_out_select_user_get",
+)
+@app.get(
+    f"{SelectUserType.ADMIN_LOGIN.value}/select-user",
+    endpoint="admin_login_select_user_get",
+)
 @pretty_exception
 async def select_user_get() -> (
     tuple[AsyncIterator[str], int] | AsyncIterator[str]
 ):
     """Handle select user GET request."""
-    assert request.endpoint is not None
-
     args = request.args.to_dict()
 
     digits = args.get("digits")
 
+    select_type = get_select_type_from_full_path(request.full_path)
+
     errors = []
     if not digits:
-        errors.append("Missing `digits` argument.")
+        errors.append("Missing <code>digits</code> argument.")
     elif len(digits) != 4:
-        errors.append("`digits` argument must be exactly 4 characters long.")
+        errors.append(
+            "<code>digits</code> argument must be exactly 4 characters long.",
+        )
     elif not digits.isdecimal():
-        errors.append("`digits` argument value must be a decimal.")
+        errors.append("<code>digits</code> argument value must be a decimal.")
     if errors:
         return await get_exception_page(
             400,  # bad request
             "Bad Request",
             "\n<br>\n".join(errors),
-            return_link=app.url_for(ENDPOINT_TO_SOURCE[request.endpoint]),
+            return_link=select_type.value,
         )
 
     assert digits is not None
 
-    is_admin = request.endpoint == "admin_login_select_user_get"
+    is_admin = select_type == SelectUserType.ADMIN_LOGIN
 
     return await stream_select_user(
         code=int(digits),
-        return_link=app.url_for(request.endpoint),
+        return_link=select_type.value,
         is_admin=is_admin,
     )
 
 
-@app.post("/check-in/select-user", endpoint="check_in_select_user_post")
-@app.post("/check-out/select-user", endpoint="check_out_select_user_post")
-@app.post("/admin-login/select-user", endpoint="admin_login_select_user_post")
+@app.post(
+    f"{SelectUserType.CHECK_IN.value}/select-user",
+    endpoint="check_in_select_user_post",
+)
+@app.post(
+    f"{SelectUserType.CHECK_OUT.value}/select-user",
+    endpoint="check_out_select_user_post",
+)
+@app.post(
+    f"{SelectUserType.ADMIN_LOGIN.value}/select-user",
+    endpoint="admin_login_select_user_post",
+)
 @pretty_exception
 async def select_user_post() -> (
     tuple[AsyncIterator[str], int] | WerkzeugResponse
 ):
     """Handle select user POST request."""
-    assert request.endpoint is not None
-
     multi_dict = await request.form
     form = multi_dict.to_dict()
     args = request.args.to_dict()
@@ -263,30 +294,35 @@ async def select_user_post() -> (
     digits = args.get("digits")
     user_id = form.get("user_id")
 
-    create_available = request.endpoint != "admin_login_select_user_get"
+    select_type = get_select_type_from_full_path(request.full_path)
+    create_available = select_type != SelectUserType.ADMIN_LOGIN
 
     action_create = create_user and create_available
-    source_page = app.url_for(ENDPOINT_TO_SOURCE[request.endpoint])
+    source_page = select_type.value
 
     errors = []
     if action_create and digits:
         if len(digits) != 4:
             errors.append(
-                "`digits` argument must be exactly 4 characters long.",
+                "<code>digits</code> argument must be exactly 4 characters long.",
             )
         elif not digits.isdecimal():
-            errors.append("`digits` argument value must be a decimal.")
+            errors.append(
+                "<code>digits</code> argument value must be a decimal.",
+            )
     else:
         if not isinstance(user_id, str):
-            errors.append("`user_id` field type must be a string.")
+            errors.append("<code>user_id</code> field type must be a string.")
         elif not user_id.isdecimal():
-            errors.append("`user_id` field value must be a decimal.")
+            errors.append(
+                "<code>user_id</code> field value must be a decimal.",
+            )
     if errors:
         return await get_exception_page(
             400,  # bad request
             "Bad Request",
             "\n<br>\n".join(errors),
-            return_link=source_page,
+            return_link=request.full_path.removesuffix("?"),
         )
 
     if action_create:
@@ -304,28 +340,36 @@ async def select_user_post() -> (
     return app.redirect(f"{source_page}/user/{numeric_user_id}")
 
 
-@app.get("/check-in/create-user", endpoint="check_in_create_user_get")
-@app.get("/check-out/create-user", endpoint="check_out_create_user_get")
+@app.get(
+    f"{SelectUserType.CHECK_IN.value}/create-user",
+    endpoint="check_in_create_user_get",
+)
+@app.get(
+    f"{SelectUserType.CHECK_OUT.value}/create-user",
+    endpoint="check_out_create_user_get",
+)
 @pretty_exception
 async def create_user_get() -> (
     tuple[AsyncIterator[str], int] | AsyncIterator[str]
 ):
     """Handle create user GET request."""
-    assert request.endpoint is not None
     args = request.args.to_dict()
 
     digits = args.get("digits")
 
-    source_page = app.url_for(ENDPOINT_TO_SOURCE[request.endpoint])
+    select_type = get_select_type_from_full_path(request.full_path)
+    source_page = select_type.value
 
     errors = []
     if digits is not None:
         if len(digits) != 4:
             errors.append(
-                "`digits` argument must be exactly 4 characters long.",
+                "<code>digits</code> argument must be exactly 4 characters long.",
             )
         elif not digits.isdecimal():
-            errors.append("`digits` argument value must be a decimal.")
+            errors.append(
+                "<code>digits</code> argument value must be a decimal.",
+            )
     if errors:
         return await get_exception_page(
             400,  # bad request
@@ -338,12 +382,9 @@ async def create_user_get() -> (
     if digits is not None:
         autofill_digits = int(digits)
 
-    params = urlencode({"digits": f"{autofill_digits:04}"})
-    return_link = f"{source_page}/select-user?{params}"
-
     return await stream_template(
         "create_user.html.jinja",
-        return_link=return_link,
+        return_link=request.full_path,
         # autofill_firstname=autofill_firstname,
         # autofill_lastname=autofill_lastname,
         # autofill_birthday=autofill_birthday,
@@ -389,15 +430,19 @@ def create_new_user(
     return user_id
 
 
-@app.post("/check-in/create-user", endpoint="check_in_create_user_post")
-@app.post("/check-out/create-user", endpoint="check_out_create_user_post")
+@app.post(
+    f"{SelectUserType.CHECK_IN.value}/create-user",
+    endpoint="check_in_create_user_post",
+)
+@app.post(
+    f"{SelectUserType.CHECK_OUT.value}/create-user",
+    endpoint="check_out_create_user_post",
+)
 @pretty_exception
 async def create_user_post() -> (
     tuple[AsyncIterator[str], int] | AsyncIterator[str]
 ):
     """Handle create user POST request."""
-    assert request.endpoint is not None
-
     multi_dict = await request.form
     form = multi_dict.to_dict()
 
@@ -406,49 +451,63 @@ async def create_user_post() -> (
     date_of_birth = form.get("date_of_birth")
     digits = form.get("digits")
 
+    select_type = get_select_type_from_full_path(request.full_path)
+
     errors = []
     if not firstname:
-        errors.append("Missing `firstname` field.")
+        errors.append("Missing <code>firstname</code> field.")
     elif not isinstance(firstname, str):
-        errors.append("`firstname` field type must be a string.")
+        errors.append("<code>firstname</code> field type must be a string.")
     elif len(firstname) < 2:
-        errors.append("`firstname` field must be at least 2 characters long.")
+        errors.append(
+            "<code>firstname</code> field must be at least 2 characters long.",
+        )
     elif len(firstname) > 100:
-        errors.append("`firstname` field must be at most 100 characters long.")
+        errors.append(
+            "<code>firstname</code> field must be at most 100 characters long.",
+        )
 
     if not lastname:
-        errors.append("Missing `lastname` field.")
+        errors.append("Missing <code>lastname</code> field.")
     elif not isinstance(lastname, str):
-        errors.append("`lastname` field type must be a string.")
+        errors.append("<code>lastname</code> field type must be a string.")
     elif len(lastname) < 2:
-        errors.append("`lastname` field must be at least 2 characters long.")
+        errors.append(
+            "<code>lastname</code> field must be at least 2 characters long.",
+        )
     elif len(lastname) > 100:
-        errors.append("`lastname` field must be at most 100 characters long.")
+        errors.append(
+            "<code>lastname</code> field must be at most 100 characters long.",
+        )
 
     if not date_of_birth:
-        errors.append("Missing `date_of_birth` field.")
+        errors.append("Missing <code>date_of_birth</code> field.")
     elif not isinstance(date_of_birth, str):
-        errors.append("`date_of_birth` field type must be a string.")
+        errors.append(
+            "<code>date_of_birth</code> field type must be a string.",
+        )
     elif parse_iso_date(date_of_birth) is None:
-        errors.append("`date_of_birth` field type must be an ISO date.")
+        errors.append(
+            "<code>date_of_birth</code> field type must be an ISO date.",
+        )
 
     if not digits:
-        errors.append("Missing `digits` field.")
+        errors.append("Missing <code>digits</code> field.")
     elif not isinstance(digits, str):
-        errors.append("`digits` field type must be a string.")
+        errors.append("<code>digits</code> field type must be a string.")
     elif len(digits) != 4:
         errors.append(
-            "`digits` field must be exactly 4 characters long.",
+            "<code>digits</code> field must be exactly 4 characters long.",
         )
     elif not digits.isdecimal():
-        errors.append("`digits` field value must be a decimal.")
+        errors.append("<code>digits</code> field value must be a decimal.")
 
     if errors:
         return await get_exception_page(
             400,  # bad request
             "Bad Request",
             "\n<br>\n".join(errors),
-            return_link=app.url_for(request.endpoint),
+            return_link=request.full_path.removesuffix("?"),
         )
 
     assert firstname is not None
@@ -467,9 +526,9 @@ async def create_user_post() -> (
         numeric_digits,
     )
 
-    if request.endpoint == "check_in_create_user_post":
+    if select_type == SelectUserType.CHECK_IN:
         return await check_in_user_get(user_id, created_user=True)
-    if request.endpoint == "check_out_create_user_post":
+    if select_type == SelectUserType.CHECK_OUT:
         return await check_out_user_get(user_id, created_user=True)
 
     raise NotImplementedError(f"{request.endpoint = }")
@@ -552,23 +611,34 @@ async def admin_login_user_get(
     raise NotImplementedError("user_id = }")
 
 
-@app.get("/check-in/user/<int:user_id>", endpoint="check_in_user_get")
-@app.get("/check-out/user/<int:user_id>", endpoint="check_out_user_get")
-@app.get("/admin-login/user/<int:user_id>", endpoint="admin_login_user_get")
+@app.get(
+    f"{SelectUserType.CHECK_IN.value}/user/<int:user_id>",
+    endpoint="check_in_user_get",
+)
+@app.get(
+    f"{SelectUserType.CHECK_OUT.value}/user/<int:user_id>",
+    endpoint="check_out_user_get",
+)
+@app.get(
+    f"{SelectUserType.ADMIN_LOGIN.value}/user/<int:user_id>",
+    endpoint="admin_login_user_get",
+)
 @pretty_exception
 async def user_selected_get(
     user_id: int,
 ) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
     """Handle user selected GET request."""
-    assert request.endpoint is not None
     user = APP_DATA["users"].get(user_id)
+
+    select_type = get_select_type_from_full_path(request.full_path)
+    source_url = select_type.value
 
     if user is None:
         return await get_exception_page(
             404,  # not found
             "Not Found",
             "User not found.",
-            return_link=app.url_for(ENDPOINT_TO_SOURCE[request.endpoint]),
+            return_link=source_url,
         )
 
     if request.endpoint == "check_in_user_get":
@@ -579,6 +649,31 @@ async def user_selected_get(
         return await admin_login_user_get(user_id, user.is_admin)
 
     # Should be unreachable
+    raise NotImplementedError(f"{request.endpoint = }")
+
+
+@app.post(f"{SelectUserType.ADMIN_LOGIN.value}/user/<int:user_id>")
+@pretty_exception
+async def admin_login_user_post(
+    user_id: int,
+) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
+    """Handle user selected GET request."""
+    user = APP_DATA["users"].get(user_id)
+
+    if user is None:
+        return await get_exception_page(
+            404,  # not found
+            "Not Found",
+            "User not found.",
+            return_link=SelectUserType.ADMIN_LOGIN.value,
+        )
+
+    multi_dict = await request.form
+    form = multi_dict.to_dict()
+
+    password = form.get("password")
+
+    print(f"{password = }")
     raise NotImplementedError(f"{request.endpoint = }")
 
 
@@ -618,6 +713,40 @@ async def user_selected_get(
 ##    return "Requested page is expired or invalid.", 410
 
 
+def ask_integer(prompt: str | None = None) -> int:
+    """Return integer from user input."""
+    while True:
+        if prompt is not None:
+            print(prompt)
+        result = input("> ")
+        try:
+            return int(result)
+        except ValueError:
+            print("Invalid input, enter an integer.")
+
+
+def ask_date(select: str = "Current ") -> tuple[int, int, int]:
+    """Return year, month, day tuple."""
+    if select and not select.endswith(" "):
+        select += " "
+    year = ask_integer(f"Enter {select}Year")
+    month = ask_integer(f"Enter {select}Month")
+    day = ask_integer(f"Enter {select}Day")
+    return (year, month, day)
+
+
+def create_user_console() -> int:
+    """Return user id from creating a new user from user input."""
+    user_id = create_new_user(
+        input("Enter firstname: "),
+        input("Enter lastname: "),
+        dt.date(*ask_date("date of birth ")),
+        ask_integer("Enter last 4 digits of phone number"),
+    )
+    print(f"Created new user ({user_id = })")
+    return user_id
+
+
 async def async_run_server(
     serve_partial: partial[Coroutine[Any, Any, None]],
 ) -> None:
@@ -627,6 +756,9 @@ async def async_run_server(
             raise RuntimeError(
                 "number of user records does not match number of calendar records",
             )
+        if not APP_DATA["users"]:
+            create_new_user("Admin", "N/A", dt.date(1970, 1, 1), 0)
+            print("Creating admin user...")
         async with trio.open_nursery() as nursery:
             nursery.start_soon(serve_partial)
 
