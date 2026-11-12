@@ -384,7 +384,7 @@ async def create_user_get() -> (
 
     return await stream_template(
         "create_user.html.jinja",
-        return_link=request.full_path,
+        return_link=f"{source_page}/select-user?digits={autofill_digits:04}",
         # autofill_firstname=autofill_firstname,
         # autofill_lastname=autofill_lastname,
         # autofill_birthday=autofill_birthday,
