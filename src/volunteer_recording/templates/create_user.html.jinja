@@ -24,6 +24,8 @@
         <input id="digits" name="digits" required="true" autocomplete="off" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" minlength="4" min="0" max="9999" size="4" value="{{ autofill_digits|default('') }}">
       </td>
     </tr>
+    {% block input_fields_table_footer scoped %}
+    {% endblock input_fields_table_footer %}
   </table>
   {% endblock input_fields %}
   <br>

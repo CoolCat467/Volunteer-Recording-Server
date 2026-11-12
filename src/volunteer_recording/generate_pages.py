@@ -686,6 +686,10 @@ def generate_create_user_get() -> str:
                     ),
                 ),
             ),
+            htmlgen.jinja_block(
+                "input_fields_table_footer",
+                scoped=True,
+            ),
         ),
     )
 

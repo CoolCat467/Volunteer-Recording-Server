@@ -25,6 +25,7 @@ __license__ = "GNU General Public License Version 3"
 
 
 import argparse
+import datetime as dt
 import tomllib
 import traceback
 from collections.abc import (
@@ -43,7 +44,6 @@ from typing import (
 )
 from urllib.parse import urlencode
 
-import orjson
 import platformdirs
 import trio
 from hypercorn.config import Config
@@ -186,8 +186,10 @@ ENDPOINT_TO_SOURCE: Final = {
     "check_in_select_user_post": "check_in_get",
     "check_in_user_get": "check_in_get",
     "check_in_create_user_get": "check_in_get",
+    "check_in_create_user_post": "check_in_get",
     "check_out_select_user_get": "check_out_get",
     "check_out_select_user_post": "check_out_get",
+    "check_out_create_user_post": "check_out_get",
     "check_out_user_get": "check_out_get",
     "check_out_create_user_get": "check_out_get",
     "admin_login_select_user_get": "admin_login_get",
@@ -298,7 +300,9 @@ async def select_user_post() -> (
 @app.get("/check-in/create-user", endpoint="check_in_create_user_get")
 @app.get("/check-out/create-user", endpoint="check_out_create_user_get")
 @pretty_exception
-async def create_user_get() -> tuple[AsyncIterator[str], int]:
+async def create_user_get() -> (
+    tuple[AsyncIterator[str], int] | AsyncIterator[str]
+):
     """Handle create user GET request."""
     assert request.endpoint is not None
     args = request.args.to_dict()
@@ -340,40 +344,128 @@ async def create_user_get() -> tuple[AsyncIterator[str], int]:
     )
 
 
+def parse_iso_date(string: str) -> dt.date | None:
+    """Return date object from string or None on error."""
+    try:
+        return dt.date.fromisoformat(string)
+    except ValueError:
+        return None
+
+
+def create_new_user(
+    firstname: str,
+    lastname: str,
+    date_of_birth: dt.date,
+    code: int,
+) -> int:
+    """Return new user id from creating user."""
+    user_db = APP_DATA["users"]
+    calendar_db = APP_DATA["calendar"]
+
+    if len(user_db) != len(calendar_db):
+        raise RuntimeError(
+            "number of user records does not match number of calendar records",
+        )
+
+    user_id = user_db.add(
+        database_bridge.User(
+            firstname=firstname,
+            lastname=lastname,
+            date_of_birth=date_of_birth,
+            code=code,
+        ),
+    )
+
+    user_id2 = calendar_db.add(database_bridge.Calendar())
+    assert user_id == user_id2
+
+    return user_id
+
+
 @app.post("/check-in/create-user", endpoint="check_in_create_user_post")
 @app.post("/check-out/create-user", endpoint="check_out_create_user_post")
 @pretty_exception
-async def create_user_post() -> tuple[AsyncIterator[str], int]:
+async def create_user_post() -> (
+    tuple[AsyncIterator[str], int] | AsyncIterator[str]
+):
     """Handle create user POST request."""
+    assert request.endpoint is not None
+
     multi_dict = await request.form
     form = multi_dict.to_dict()
 
+    firstname = form.get("firstname")
+    lastname = form.get("lastname")
+    date_of_birth = form.get("date_of_birth")
     digits = form.get("digits")
 
-    source_page = app.url_for(request.endpoint)
-
     errors = []
-    if digits is not None:
-        if len(digits) != 4:
-            errors.append(
-                "`digits` argument must be exactly 4 characters long.",
-            )
-        elif not digits.isdecimal():
-            errors.append("`digits` argument value must be a decimal.")
+    if not firstname:
+        errors.append("Missing `firstname` field.")
+    elif not isinstance(firstname, str):
+        errors.append("`firstname` field type must be a string.")
+    elif len(firstname) < 2:
+        errors.append("`firstname` field must be at least 2 characters long.")
+    elif len(firstname) > 100:
+        errors.append("`firstname` field must be at most 100 characters long.")
+
+    if not lastname:
+        errors.append("Missing `lastname` field.")
+    elif not isinstance(lastname, str):
+        errors.append("`lastname` field type must be a string.")
+    elif len(lastname) < 2:
+        errors.append("`lastname` field must be at least 2 characters long.")
+    elif len(lastname) > 100:
+        errors.append("`lastname` field must be at most 100 characters long.")
+
+    if not date_of_birth:
+        errors.append("Missing `date_of_birth` field.")
+    elif not isinstance(date_of_birth, str):
+        errors.append("`date_of_birth` field type must be a string.")
+    elif parse_iso_date(date_of_birth) is None:
+        errors.append("`date_of_birth` field type must be an ISO date.")
+
+    if not digits:
+        errors.append("Missing `digits` field.")
+    elif not isinstance(digits, str):
+        errors.append("`digits` field type must be a string.")
+    elif len(digits) != 4:
+        errors.append(
+            "`digits` field must be exactly 4 characters long.",
+        )
+    elif not digits.isdecimal():
+        errors.append("`digits` field value must be a decimal.")
+
     if errors:
         return await get_exception_page(
             400,  # bad request
             "Bad Request",
             "\n<br>\n".join(errors),
-            return_link=source_page,
+            return_link=app.url_for(request.endpoint),
         )
 
+    assert firstname is not None
+    assert lastname is not None
+    assert date_of_birth is not None
     assert digits is not None
 
+    date_of_birth_date = dt.date.fromisoformat(date_of_birth)
+    assert date_of_birth_date is not None
     numeric_digits = int(digits)
-    print(f"{numeric_digits = }")
 
-    return form
+    user_id = create_new_user(
+        firstname,
+        lastname,
+        date_of_birth_date,
+        numeric_digits,
+    )
+
+    if request.endpoint == "check_in_create_user_post":
+        return await check_in_user_get(user_id)
+    if request.endpoint == "check_out_create_user_post":
+        return await check_out_user_get(user_id)
+
+    raise NotImplementedError(f"{request.endpoint = }")
 
 
 async def check_in_user_get(
@@ -387,7 +479,13 @@ async def check_in_user_get(
 
     # TODO: Add check-in stamp for user
     # raise NotImplementedError("user_id = }")
-    return orjson.dumps(user_calendar)
+    ##message = "Successfully created user!"
+    ##
+    ##return await stream_template(
+    ##    "success.html.jinja",
+    ##    message=message,
+    ##)
+    return repr(user_calendar)
 
 
 async def check_out_user_get(
