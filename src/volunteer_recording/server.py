@@ -31,6 +31,7 @@ import traceback
 from collections.abc import (
     AsyncIterator,
     Coroutine,
+    Generator,
     Iterable,
 )
 from dataclasses import dataclass, field
@@ -255,6 +256,21 @@ async def phone_input_post() -> (
     return app.redirect(f"{source_page}/select-user?{params}")
 
 
+def iterable_has_values[T](iterable: Iterable[T]) -> tuple[bool, Iterable[T]]:
+    """Return tuple of boolean of if iterator has at least one value and the iterator."""
+    iterator = iter(iterable)
+    try:
+        first = next(iterator)
+    except StopIteration:
+        return False, iterator
+
+    def generator() -> Generator[T]:
+        yield first
+        yield from iterator
+
+    return True, generator()
+
+
 async def stream_select_user(
     code: int,
     return_link: str,
@@ -262,16 +278,20 @@ async def stream_select_user(
 ) -> AsyncIterator[str]:
     """Return select user template stream."""
     # Get user from code
+    user_db = APP_DATA["user"]
     if is_admin:
-        user_records = APP_DATA["user"].yield_admin_records_from_code(
+        user_records = user_db.yield_admin_records_from_code(
             code=code,
         )
     else:
-        user_records = APP_DATA["user"].yield_records_from_code(code=code)
+        user_records = user_db.yield_records_from_code(code=code)
+
+    records_exist, records_gen = iterable_has_values(user_records)
 
     return await stream_template(
         "select_user.html.jinja",
-        user_records=user_records,
+        records_exist=records_exist,
+        user_records=records_gen,
         return_link=return_link,
         show_create=not is_admin,
     )
@@ -898,7 +918,7 @@ async def handle_admin_edit_user_get() -> AsyncIterator[str]:
 @login_required
 async def handle_admin_edit_user_view_user_get(
     user_id: int,
-) -> tuple[AsyncIterator[str], int] | dict[str, object]:
+) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
     """Handle administrator edit user GET request."""
     ### Check that session is still valid
     ##get_user_id_from_session()
@@ -913,8 +933,16 @@ async def handle_admin_edit_user_view_user_get(
             return_link="/admin/edit-user",
         )
 
-    # TODO: Edit user template
-    return dict(orjson.loads(orjson.dumps(user)))
+    return await stream_template(
+        "admin_edit_user.html.jinja",
+        return_link="/admin/edit-user",
+        autofill_firstname=user.firstname,
+        autofill_lastname=user.lastname,
+        autofill_birthday=user.date_of_birth,
+        autofill_code=f"{user.code:04}",
+        autofill_retired=user.retired,
+        is_admin=user.is_admin,
+    )
 
 
 def admin_reset_password(user_id: int, password: str) -> None:
@@ -950,9 +978,10 @@ def modify_user(
     if new_is_admin is None or new_is_admin:
         return
 
-    # Delete password entry
+    # Delete password entry if it exists
     password_db = APP_DATA["password"]
-    del password_db[user_id]
+    if password_db.get(user_id) is not None:
+        del password_db[user_id]
 
 
 @app.post("/admin/edit-user/<int:user_id>")
@@ -960,7 +989,7 @@ def modify_user(
 @login_required
 async def handle_admin_edit_user_post(
     user_id: int,
-) -> tuple[AsyncIterator[str], int] | WerkzeugResponse:
+) -> tuple[AsyncIterator[str], int] | AsyncIterator[str] | WerkzeugResponse:
     """Handle administrator edit user POST request."""
     user = APP_DATA["user"].get(user_id)
 
@@ -1051,6 +1080,7 @@ async def handle_admin_edit_user_post(
     numeric_code = int(code)
 
     grant_admin = toggle_admin and not user.is_admin
+    revoke_admin = toggle_admin and user.is_admin
 
     modify_user(
         user_id,
@@ -1060,14 +1090,19 @@ async def handle_admin_edit_user_post(
         code=numeric_code,
         retired=retired,
         # If granting admin, will handle setting admin with
-        # grant_admin_privileges later. Otherwise,
-        is_admin=False,
+        # grant_admin_privileges later. Otherwise, don't change it.
+        is_admin=False if revoke_admin else user.is_admin,
     )
 
     if grant_admin:
-        return app.redirect(f"{source_page}/change-password")
+        return app.redirect(f"/admin/edit-user/{user_id}/change-password")
 
-    return app.redirect(source_page)
+    return await stream_template(
+        "success.html.jinja",
+        message="Changes to user saved successfully!",
+        return_text="Return to edit user panel",
+        return_link=source_page,
+    )
 
 
 @app.get("/admin/edit-user/<int:user_id>/change-password")

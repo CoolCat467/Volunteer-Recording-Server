@@ -266,7 +266,7 @@ def base_template() -> str:
                 type_="text/css",
                 href="/style.css",
             ),
-            htmlgen.jinja_block("head", scoped=True, block=False),
+            htmlgen.jinja_block("head", scoped=True),
         ),
     )
 
@@ -287,7 +287,6 @@ def base_template() -> str:
                             "body",
                             scoped=True,
                             required=True,
-                            block=False,
                         ),
                     ),
                 ),
@@ -333,29 +332,33 @@ def base_template() -> str:
 
 
 def template(
-    body: str,
+    body: str | None = None,
     *,
     title: str | None = None,
     head: str | None = None,
     lang: str = "en",
+    extends: str = "base",
 ) -> str:
     """Use base HTML Template for application."""
     sections = [
-        htmlgen.jinja_extends("base.html.jinja"),
+        htmlgen.jinja_extends(f"{extends}.html.jinja"),
     ]
 
     if title is not None:
         sections.append(
-            htmlgen.jinja_block("title", title, scoped=True, block=False),
+            htmlgen.jinja_block("title", title, block=False, scoped=True),
         )
 
     if head is not None:
         sections.append(htmlgen.jinja_block("head", head, scoped=True))
 
     if lang != "en":
-        sections.append(htmlgen.jinja_block("lang", lang, scoped=True))
+        sections.append(
+            htmlgen.jinja_block("lang", lang, scoped=True, block=False),
+        )
 
-    sections.append(htmlgen.jinja_block("body", body, scoped=True))
+    if body is not None:
+        sections.append(htmlgen.jinja_block("body", body, scoped=True))
 
     return "\n".join(sections)
 
@@ -483,32 +486,28 @@ def template_return_footer(
 ) -> str:
     """Use admin signout footer HTML Template for application."""
     sections = [
-        htmlgen.jinja_extends(f"{extends}.html.jinja"),
+        template(body, title=title, head=head, lang=lang, extends=extends),
     ]
-
-    if title is not None:
-        sections.append(
-            htmlgen.jinja_block("title", title, block=False, scoped=True),
-        )
-
-    if head is not None:
-        sections.append(htmlgen.jinja_block("head", head, scoped=True))
-
-    if lang != "en":
-        sections.append(htmlgen.jinja_block("lang", lang, scoped=True))
 
     if return_text is not None:
         sections.append(
-            htmlgen.jinja_block("return_text", return_text, scoped=True),
+            htmlgen.jinja_block(
+                "return_text",
+                return_text,
+                scoped=True,
+                block=False,
+            ),
         )
 
     if return_link is not None:
         sections.append(
-            htmlgen.jinja_block("return_link", return_link, scoped=True),
+            htmlgen.jinja_block(
+                "return_link",
+                return_link,
+                scoped=True,
+                block=False,
+            ),
         )
-
-    if body is not None:
-        sections.append(htmlgen.jinja_block("body", body, scoped=True))
 
     return "\n".join(sections)
 
@@ -622,6 +621,17 @@ def generate_select_user_get() -> str:
         class_="user-table center",
     )
 
+    user_list_or_message = htmlgen.jinja_if_block(
+        {
+            "records_exist": user_list,
+            "": htmlgen.wrap_tag(
+                "p",
+                "No users currently exist with this code. Press the button below to create one.",
+                block=False,
+            ),
+        },
+    )
+
     back_link = htmlgen.wrap_tag(
         "a",
         "Enter a different code",
@@ -642,10 +652,10 @@ def generate_select_user_get() -> str:
         {"show_create": create_new_user_button},
     )
 
-    form_content = "\n".join(  # noqa: FLY002
+    form_content = "\n".join(
         (
-            user_list,
-            "<br>",
+            user_list_or_message,
+            htmlgen.tag("br"),
             htmlgen.jinja_super_block(),
             back_link,
             create_new_user_section,
@@ -664,6 +674,84 @@ def generate_select_user_get() -> str:
     return template_return_footer(
         html,
         title=f"Select your user{title_extra}",
+    )
+
+
+@save_template_as("input_user_data")
+def input_user_data_table() -> str:
+    """Generate return footer page."""
+    rows = (
+        (
+            htmlgen.input_field(
+                "firstname",
+                "First name",
+                attrs={
+                    "required": True,
+                    "autocomplete": "off",
+                    "minlength": 2,
+                    "maxlength": 100,
+                    "size": 30,
+                    "value": htmlgen.jinja_expression(
+                        "autofill_firstname|default('')",
+                    ),
+                },
+            ),
+            htmlgen.input_field(
+                "lastname",
+                "Last name",
+                attrs={
+                    "required": True,
+                    "autocomplete": "off",
+                    "minlength": 2,
+                    "maxlength": 100,
+                    "size": 30,
+                    "value": htmlgen.jinja_expression(
+                        "autofill_lastname|default('')",
+                    ),
+                },
+            ),
+        ),
+        (
+            htmlgen.input_field(
+                "date_of_birth",
+                "Date of birth",
+                field_type="date",
+                attrs={
+                    "required": True,
+                    "autocomplete": "off",
+                    "minlength": 2,
+                    "maxlength": 100,
+                    "size": 30,
+                    "value": htmlgen.jinja_expression(
+                        "autofill_birthday|default('')",
+                    ),
+                },
+            ),
+            htmlgen.input_field(
+                "code",
+                "Last 4 digits of phone number",
+                attrs={
+                    "required": True,
+                    "autocomplete": "off",
+                    "inputmode": "numeric",
+                    "pattern": "[0-9]{4}",
+                    "maxlength": "4",
+                    "minlength": "4",
+                    "min": 0,
+                    "max": 9999,
+                    "size": 4,
+                    "value": htmlgen.jinja_expression(
+                        "autofill_code|default('')",
+                    ),
+                },
+            ),
+        ),
+    )
+
+    return htmlgen.render_table_rows(
+        rows,
+        first_is_header=False,
+        cell_block=True,
     )
 
 
@@ -687,109 +775,11 @@ def generate_create_user_get() -> str:
         type_="submit",
     )
 
-    input_fields_table = "\n".join(
-        (
-            htmlgen.wrap_tag(
-                "tr",
-                "\n".join(
-                    (
-                        htmlgen.wrap_tag(
-                            "td",
-                            htmlgen.input_field(
-                                "firstname",
-                                "First name",
-                                attrs={
-                                    "required": True,
-                                    "autocomplete": "off",
-                                    "minlength": 2,
-                                    "maxlength": 100,
-                                    "size": 30,
-                                    "value": htmlgen.jinja_expression(
-                                        "autofill_firstname|default('')",
-                                    ),
-                                },
-                            ),
-                        ),
-                        htmlgen.wrap_tag(
-                            "td",
-                            htmlgen.input_field(
-                                "lastname",
-                                "Last name",
-                                attrs={
-                                    "required": True,
-                                    "autocomplete": "off",
-                                    "minlength": 2,
-                                    "maxlength": 100,
-                                    "size": 30,
-                                    "value": htmlgen.jinja_expression(
-                                        "autofill_lastname|default('')",
-                                    ),
-                                },
-                            ),
-                        ),
-                    ),
-                ),
-            ),
-            htmlgen.wrap_tag(
-                "tr",
-                "\n".join(
-                    (
-                        htmlgen.wrap_tag(
-                            "td",
-                            htmlgen.input_field(
-                                "date_of_birth",
-                                "Date of birth",
-                                field_type="date",
-                                attrs={
-                                    "required": True,
-                                    "autocomplete": "off",
-                                    "minlength": 2,
-                                    "maxlength": 100,
-                                    "size": 30,
-                                    "value": htmlgen.jinja_expression(
-                                        "autofill_birthday|default('')",
-                                    ),
-                                },
-                            ),
-                        ),
-                        htmlgen.wrap_tag(
-                            "td",
-                            htmlgen.input_field(
-                                "code",
-                                "Last 4 digits of phone number",
-                                attrs={
-                                    "required": True,
-                                    "autocomplete": "off",
-                                    "inputmode": "numeric",
-                                    "pattern": "[0-9]{4}",
-                                    "maxlength": "4",
-                                    "minlength": "4",
-                                    "min": 0,
-                                    "max": 9999,
-                                    "size": 4,
-                                    "value": htmlgen.jinja_expression(
-                                        "autofill_code|default('')",
-                                    ),
-                                },
-                            ),
-                        ),
-                    ),
-                ),
-            ),
-            htmlgen.jinja_block(
-                "input_fields_table_footer",
-                scoped=True,
-            ),
-        ),
-    )
+    input_fields_rows = htmlgen.jinja_include("input_user_data.html.jinja")
 
     form_content = "\n".join(
         (
-            htmlgen.jinja_block(
-                "input_fields",
-                htmlgen.wrap_tag("table", input_fields_table),
-                scoped=True,
-            ),
+            htmlgen.wrap_tag("table", input_fields_rows),
             htmlgen.tag("br"),
             htmlgen.jinja_super_block(),
             back_link,
@@ -805,11 +795,84 @@ def generate_create_user_get() -> str:
     )
 
 
+##@save_template_as("success_body")
+##def generate_generic_success_page() -> str:
+##    """Generate generic success body."""
+##    refreshes_after = htmlgen.jinja_block("refreshes_after", "10", scoped=True, block=False)
+##    return_link = htmlgen.jinja_expression("self.return_link()")
+##    refresh_content = f"{refreshes_after};url={return_link}"
+##
+##    custom_css = "\n".join(
+##        (
+##            htmlgen.css(
+##                ".success_check",
+##                display="block",
+##                color="#198754",
+##                font_size="5rem",
+##                line_height=1,
+##                margin=("1rem", "0"),
+##            ),
+##            htmlgen.css(
+##                ".box",
+##                border=("2px", "solid", "limegreen"),
+##            ),
+##        ),
+##    )
+##
+##    head = "\n".join(
+##        (
+##            htmlgen.tag("meta", http_equiv="refresh", content=refresh_content),
+##            htmlgen.wrap_tag("style", custom_css),
+##        ),
+##    )
+##
+##    refresh_time_plural = htmlgen.jinja_number_plural(
+##        "self.refreshes_after()",
+##        "second",
+##    )
+##    refresh_time_display = f"{refreshes_after} {refresh_time_plural}"
+##
+##    message_content = htmlgen.wrap_tag(
+##        "p",
+##        htmlgen.jinja_expression("message"),
+##        block=False,
+##    )
+##    content = "\n".join(
+##        (
+##            message_content,
+##            htmlgen.wrap_tag(
+##                "span",
+##                "✓",
+##                block=False,
+##                class_="success_check center",
+##                aria_label="Success",
+##            ),
+##            htmlgen.tag("br"),
+##            htmlgen.jinja_block("message", scoped=True, required=True),
+##            htmlgen.tag("hr"),
+##            htmlgen.wrap_tag(
+##                "i",
+##                f"This page will automatically refresh after {refresh_time_display}.",
+##                block=False,
+##            ),
+##        ),
+##    )
+##    body = htmlgen.contain_in_box(content)
+##
+##
+##    return "\n".join(sections)
+
+
 @save_template_as("success")
 def generate_success_page() -> str:
     """Generate success response page."""
     refreshes_after = htmlgen.jinja_expression("refreshes_after|default(10)")
-    refresh_content = f"{refreshes_after};url=/"
+    return_text = htmlgen.jinja_expression(
+        "return_text|default('Return to main page')",
+    )
+    return_link = htmlgen.jinja_expression("return_link|default('/')")
+    return_link_block = htmlgen.jinja_expression("self.return_link()")
+    refresh_content = f"{refreshes_after};url={return_link_block}"
 
     custom_css = "\n".join(
         (
@@ -871,6 +934,8 @@ def generate_success_page() -> str:
         body,
         title="Success",
         head=head,
+        return_text=return_text,
+        return_link=return_link,
     )
 
 
@@ -946,43 +1011,26 @@ def generate_prompt_password_get() -> str:
     )
 
 
-@save_template_as("admin_signout")
-def admin_signout_page() -> str:
-    """Generate admin signout page."""
-    return template_return_footer(
-        return_text="Sign out",
-        return_link="/admin/signout",
-    )
-
-
 def template_admin_signout_footer(
-    body: str,
+    body: str | None = None,
     *,
     title: str | None = None,
     head: str | None = None,
     lang: str = "en",
+    sign_out_text: str = "Sign out",
+    sign_out_link: str = "/admin/signout",
+    extends: str = "return_footer",
 ) -> str:
     """Use admin signout footer HTML Template for application."""
-    sections = [
-        htmlgen.jinja_extends("admin_signout.html.jinja"),
-    ]
-
-    if title is not None:
-        sections.append(
-            htmlgen.jinja_block("title", title, block=False, scoped=True),
-        )
-
-    if head is not None:
-        sections.append(htmlgen.jinja_block("head", head, scoped=True))
-
-    if lang != "en":
-        sections.append(htmlgen.jinja_block("lang", lang, scoped=True))
-
-    body_content = f"{body}\n{htmlgen.jinja_super_block()}"
-
-    sections.append(htmlgen.jinja_block("body", body_content, scoped=True))
-
-    return "\n".join(sections)
+    return template_return_footer(
+        body,
+        title=title,
+        head=head,
+        lang=lang,
+        return_text=sign_out_text,
+        return_link=sign_out_link,
+        extends=extends,
+    )
 
 
 @save_template_as("admin_root")
@@ -1000,7 +1048,13 @@ def admin_root_get() -> str:
         "Actions",
     )
 
-    body = f"{link_list}\n<br>"
+    body = "\n".join(
+        (
+            link_list,
+            htmlgen.tag("br"),
+            htmlgen.jinja_super_block(),
+        ),
+    )
 
     return template_admin_signout_footer(body, title="Administration Panel")
 
@@ -1011,7 +1065,7 @@ def admin_return_signout_page() -> str:
     return_root = htmlgen.wrap_tag(
         "a",
         htmlgen.jinja_block(
-            "return_text",
+            "return_admin_panel_text",
             "Return to admin panel",
             scoped=True,
             block=False,
@@ -1021,53 +1075,46 @@ def admin_return_signout_page() -> str:
         href="/admin",
     )
 
-    return template_admin_signout_footer(return_root)
+    body = f"{htmlgen.jinja_super_block()}\n{return_root}"
+
+    return template_admin_signout_footer(body)
 
 
 def template_admin_return_signout_footer(
-    body: str,
+    body: str | None = None,
     *,
     title: str | None = None,
     head: str | None = None,
     lang: str = "en",
-    return_text: str | None = None,
+    sign_out_text: str = "Sign out",
+    sign_out_link: str = "/admin/signout",
+    return_admin_panel_text: str | None = None,
+    extends: str = "admin_return_signout",
 ) -> str:
     """Use admin return signout footer HTML Template for application."""
     sections = [
-        htmlgen.jinja_extends("admin_return_signout.html.jinja"),
+        template_admin_signout_footer(
+            body,
+            title=title,
+            head=head,
+            lang=lang,
+            sign_out_text=sign_out_text,
+            sign_out_link=sign_out_link,
+            extends=extends,
+        ),
     ]
 
-    if title is not None:
+    if return_admin_panel_text is not None:
         sections.append(
-            htmlgen.jinja_block("title", title, block=False, scoped=True),
-        )
-
-    if head is not None:
-        sections.append(htmlgen.jinja_block("head", head, scoped=True))
-
-    if lang != "en":
-        sections.append(htmlgen.jinja_block("lang", lang, scoped=True))
-
-    body_content = f"{body}\n{htmlgen.jinja_super_block()}"
-
-    sections.append(htmlgen.jinja_block("body", body_content, scoped=True))
-
-    return "\n".join(sections)
-
-
-def jinja_disabled_checkbox(value_expression: str) -> str:
-    """Return disabled checkbox with its checked state dependent on given expression."""
-    return htmlgen.jinja_arg_tag(
-        "input",
-        (
-            htmlgen.jinja_if_block(
-                {value_expression: 'checked="true" '},
+            htmlgen.jinja_block(
+                "return_admin_panel_text",
+                return_admin_panel_text,
+                scoped=True,
                 block=False,
             ),
-        ),
-        type_="checkbox",
-        disabled=True,
-    )
+        )
+
+    return "\n".join(sections)
 
 
 @save_template_as("admin_select_edit_user")
@@ -1123,12 +1170,18 @@ def generate_admin_edit_user_get() -> str:
                     ),
                     htmlgen.wrap_tag(
                         "td",
-                        jinja_disabled_checkbox("user.retired"),
+                        htmlgen.jinja_checkbox(
+                            "user.retired",
+                            disabled=True,
+                        ),
                         block=False,
                     ),
                     htmlgen.wrap_tag(
                         "td",
-                        jinja_disabled_checkbox("user.is_admin"),
+                        htmlgen.jinja_checkbox(
+                            "user.is_admin",
+                            disabled=True,
+                        ),
                         block=False,
                     ),
                     htmlgen.wrap_tag(
@@ -1142,11 +1195,131 @@ def generate_admin_edit_user_get() -> str:
         class_="user-table center",
     )
 
-    html = f"{user_table}\n<br>"
+    html = "\n".join(
+        (
+            user_table,
+            htmlgen.tag("br"),
+            htmlgen.jinja_super_block(),
+        ),
+    )
 
     return template_admin_return_signout_footer(
         html,
         title="Edit Users",
+    )
+
+
+@save_template_as("admin_edit_user")
+def generate_admin_edit_user_modify_user_get() -> str:
+    """Generate admin edit user GET page."""
+    retired_checkbox = "\n".join(
+        (
+            htmlgen.wrap_tag(
+                "label",
+                "Retired",
+                False,
+                for_="retired_checkbox",
+            ),
+            htmlgen.jinja_checkbox(
+                "autofill_retired|default(false)",
+                id_="retired_checkbox",
+                name="retired",
+            ),
+        ),
+    )
+
+    is_admin = htmlgen.wrap_tag(
+        "code",
+        htmlgen.jinja_expression("is_admin"),
+        block=False,
+    )
+
+    toggle_admin_button = htmlgen.jinja_if_block(
+        {
+            "is_admin": htmlgen.wrap_tag(
+                "button",
+                "Revoke Administrator Privileges",
+                block=False,
+                type_="submit",
+                name="toggle_admin",
+            ),
+            "": htmlgen.wrap_tag(
+                "button",
+                "Grant Administrator Privileges",
+                block=False,
+                type_="submit",
+                name="toggle_admin",
+                style="".join(
+                    htmlgen.css_style(border=("2px", "solid", "red")),
+                ).removesuffix(";"),
+            ),
+        },
+    )
+
+    current_admin_status_message = htmlgen.wrap_tag(
+        "p",
+        f"Is Admin: {is_admin}",
+        block=False,
+    )
+
+    row1_elements = (
+        retired_checkbox,
+        current_admin_status_message,
+    )
+    row2 = htmlgen.table_row(
+        "\n".join(
+            (
+                htmlgen.table_cell("", block=False),
+                htmlgen.table_cell(toggle_admin_button),
+            ),
+        ),
+    )
+
+    input_fields_rows = "\n".join(
+        (
+            htmlgen.jinja_include("input_user_data.html.jinja"),
+            htmlgen.table_row_elements(
+                row1_elements,
+                cell_block=True,
+            ),
+            row2,
+        ),
+    )
+
+    return_link = htmlgen.jinja_expression("return_link")
+
+    back_link = htmlgen.wrap_tag(
+        "a",
+        "Return to user list without saving",
+        block=False,
+        class_="submit_button",
+        href=return_link,
+    )
+
+    submit_button = htmlgen.wrap_tag(
+        "button",
+        "Save Changes",
+        block=False,
+        type_="submit",
+    )
+
+    form_content = "\n".join(
+        (
+            htmlgen.wrap_tag("table", input_fields_rows),
+            htmlgen.tag("br"),
+            htmlgen.jinja_super_block(),
+            back_link,
+            submit_button,
+        ),
+    )
+
+    html = htmlgen.form("modify_user", form_content)
+
+    return template_admin_return_signout_footer(
+        html,
+        title="Edit User",
+        sign_out_text="Sign out without saving",
+        return_admin_panel_text="Return to admin panel without saving",
     )
 
 

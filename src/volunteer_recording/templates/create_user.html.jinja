@@ -2,32 +2,9 @@
 {% block title scoped %}Create a new account{% endblock title %}
 {% block body scoped %}
 <form id="create_user" name="create_user" method="post">
-  {% block input_fields scoped %}
   <table>
-    <tr>
-      <td>
-        <label for="firstname">First name</label>
-        <input id="firstname" name="firstname" required="true" autocomplete="off" minlength="2" maxlength="100" size="30" value="{{ autofill_firstname|default('') }}">
-      </td>
-      <td>
-        <label for="lastname">Last name</label>
-        <input id="lastname" name="lastname" required="true" autocomplete="off" minlength="2" maxlength="100" size="30" value="{{ autofill_lastname|default('') }}">
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <label for="date_of_birth">Date of birth</label>
-        <input type="date" id="date_of_birth" name="date_of_birth" required="true" autocomplete="off" minlength="2" maxlength="100" size="30" value="{{ autofill_birthday|default('') }}">
-      </td>
-      <td>
-        <label for="code">Last 4 digits of phone number</label>
-        <input id="code" name="code" required="true" autocomplete="off" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" minlength="4" min="0" max="9999" size="4" value="{{ autofill_code|default('') }}">
-      </td>
-    </tr>
-    {% block input_fields_table_footer scoped %}
-    {% endblock input_fields_table_footer %}
+    {% include 'input_user_data.html.jinja' %}
   </table>
-  {% endblock input_fields %}
   <br>
   {{ super() -}}
   <a class="submit_button" href="{{ return_link }}">Back to select user</a>

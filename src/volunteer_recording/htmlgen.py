@@ -426,6 +426,75 @@ def option_tag(
     return wrap_tag("option", label or "", block=False, **kwargs)
 
 
+def table_cell(
+    value: str,
+    /,
+    is_header: bool = False,
+    block: bool = True,
+    **kwargs: TagArg,
+) -> str:
+    """Wrap value in table cell tag."""
+    return wrap_tag("th" if is_header else "td", value, block=block, **kwargs)
+
+
+def table_row(
+    value: str,
+    /,
+    block: bool = True,
+    **kwargs: TagArg,
+) -> str:
+    """Wrap value in table row tag."""
+    return wrap_tag("tr", value, block=block, **kwargs)
+
+
+def table(
+    value: str,
+    /,
+    block: bool = True,
+    **kwargs: TagArg,
+) -> str:
+    """Wrap value in table tag."""
+    return wrap_tag("table", value, block=block, **kwargs)
+
+
+def table_row_elements(
+    elements: Iterable[str],
+    /,
+    is_header: bool = False,
+    cell_block: bool = False,
+    **kwargs: TagArg,
+) -> str:
+    """Return table row from given iterable of elements."""
+    return table_row(
+        "\n".join(
+            table_cell(element, is_header=is_header, block=cell_block)
+            for element in elements
+        ),
+        block=True,
+        **kwargs,
+    )
+
+
+def render_table_rows(
+    rows: Iterable[Iterable[str]],
+    /,
+    first_is_header: bool = True,
+    cell_block: bool = False,
+) -> str:
+    """Return rendered table rows from given iterable of rows."""
+    rendered_rows = []
+    for index, row in enumerate(rows):
+        is_header = first_is_header and not index
+        rendered_rows.append(
+            table_row_elements(
+                row,
+                is_header=is_header,
+                cell_block=cell_block,
+            ),
+        )
+    return "\n".join(rendered_rows)
+
+
 def wrap_select(
     name: str,
     label: str,
@@ -742,6 +811,33 @@ def jinja_super_block() -> str:
     return jinja_expression("super()", strip_whitespace_after=True)
 
 
+def jinja_include(
+    templates: str | Iterable[str],
+    ignore_missing: bool = False,
+    no_context: bool = False,
+) -> str:
+    """Return jinja includes statement from given template filenames."""
+    # Using if else instead of ternary because it makes it confusing from
+    # a types perspective and less readable
+    if isinstance(
+        templates,
+        str,
+    ):  # ternary operator instead of if else
+        targets = repr(templates)
+    else:
+        elements = ", ".join(map(repr, templates))
+        targets = f"[{elements}]"
+
+    sections = [targets]
+    if ignore_missing:
+        sections.append("ignore missing")
+    if no_context:
+        sections.append("without context")
+
+    section_data = " ".join(sections)
+    return jinja_statement(f"include {section_data}")
+
+
 def jinja_number_plural(
     numeric_value: int | str,
     word: str,
@@ -910,4 +1006,23 @@ def jinja_select_block(
             else_content=else_content,
         ),
         **select_kwargs,
+    )
+
+
+def jinja_checkbox(
+    value_expression: str,
+    /,
+    **kwargs: TagArg,
+) -> str:
+    """Return checkbox with its checked state dependent on given expression."""
+    return jinja_arg_tag(
+        "input",
+        (
+            jinja_if_block(
+                {value_expression: 'checked="true" '},
+                block=False,
+            ),
+        ),
+        type_="checkbox",
+        **kwargs,
     )

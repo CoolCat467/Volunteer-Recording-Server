@@ -1,0 +1,35 @@
+{% extends "admin_return_signout.html.jinja" %}
+{% block title scoped %}Edit User{% endblock title %}
+{% block body scoped %}
+<form id="modify_user" name="modify_user" method="post">
+  <table>
+    {% include 'input_user_data.html.jinja' %}
+    <tr>
+      <td>
+        <label for="retired_checkbox">Retired</label>
+        <input {% if autofill_retired|default(false) %}checked="true" {% endif %}type="checkbox" id="retired_checkbox" name="retired">
+      </td>
+      <td>
+        <p>Is Admin: <code>{{ is_admin }}</code></p>
+      </td>
+    </tr>
+    <tr>
+      <td></td>
+      <td>
+        {% if is_admin %}
+        <button type="submit" name="toggle_admin">Revoke Administrator Privileges</button>
+        {% else %}
+        <button type="submit" name="toggle_admin" style="border: 2px solid red">Grant Administrator Privileges</button>
+        {% endif %}
+      </td>
+    </tr>
+  </table>
+  <br>
+  {{ super() -}}
+  <a class="submit_button" href="{{ return_link }}">Return to user list without saving</a>
+  <button type="submit">Save Changes</button>
+</form>
+{% endblock body %}
+{% block return_text scoped %}Sign out without saving{% endblock return_text %}
+{% block return_link scoped %}/admin/signout{% endblock return_link %}
+{% block return_admin_panel_text scoped %}Return to admin panel without saving{% endblock return_admin_panel_text %}

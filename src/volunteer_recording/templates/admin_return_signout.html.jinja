@@ -1,5 +1,7 @@
-{% extends "admin_signout.html.jinja" %}
+{% extends "return_footer.html.jinja" %}
 {% block body scoped %}
-<a class="submit_button" href="/admin">{% block return_text scoped %}Return to admin panel{% endblock return_text %}</a>
 {{ super() -}}
+<a class="submit_button" href="/admin">{% block return_admin_panel_text scoped %}Return to admin panel{% endblock return_admin_panel_text %}</a>
 {% endblock body %}
+{% block return_text scoped %}Sign out{% endblock return_text %}
+{% block return_link scoped %}/admin/signout{% endblock return_link %}
