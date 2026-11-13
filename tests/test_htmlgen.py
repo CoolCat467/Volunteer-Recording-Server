@@ -754,7 +754,7 @@ def test_jinja_extends_path() -> None:
 
 
 def test_jinja_super_block() -> None:
-    assert htmlgen.jinja_super_block() == "{{ super() }}"
+    assert htmlgen.jinja_super_block() == "{{ super() -}}"
 
 
 def test_jinja_number_plural() -> None:
