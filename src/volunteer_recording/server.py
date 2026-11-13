@@ -147,6 +147,10 @@ class SessionDatabase:
                 return uuid, session
         return None
 
+    def revoke_session(self, uuid: UUID) -> None:
+        """Revoke a given session."""
+        del self.sessions[uuid]
+
 
 class AppData(TypedDict):
     """Global shared application data."""
@@ -610,6 +614,7 @@ async def create_user_post() -> (
     if select_type == SelectUserType.CHECK_OUT:
         return await check_out_user_get(user_id, created_user=True)
 
+    # Should be unreachable
     raise NotImplementedError(f"{request.endpoint = }")
 
 
@@ -920,10 +925,12 @@ async def handle_admin_edit_user_view_user_get(
     user_id: int,
 ) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
     """Handle administrator edit user GET request."""
-    ### Check that session is still valid
-    ##get_user_id_from_session()
+    # Check that session is still valid
+    logged_in_user_id = get_user_id_from_session()
 
     user = APP_DATA["user"].get(user_id)
+
+    self_modification = logged_in_user_id == user_id
 
     if user is None:
         return await get_exception_page(
@@ -940,6 +947,7 @@ async def handle_admin_edit_user_view_user_get(
         autofill_lastname=user.lastname,
         autofill_birthday=user.date_of_birth,
         autofill_code=f"{user.code:04}",
+        self_modification=self_modification,
         autofill_retired=user.retired,
         is_admin=user.is_admin,
     )
@@ -983,6 +991,30 @@ def modify_user(
     if password_db.get(user_id) is not None:
         del password_db[user_id]
 
+    # Delete session entries if they exist
+    session_db = APP_DATA["session"]
+    while True:
+        session_record = session_db.find_session_user_id(user_id)
+        if session_record is None:
+            break
+        uuid = session_record[0]
+        session_db.revoke_session(uuid)
+
+
+SELF_REVOKE_ADMIN_FORBIDDEN_MESSAGE: Final = " ".join(
+    """You are not allowed to revoke your own administrator permissions,
+because if you were the only administrator left no one would be able to
+log in again. Please contact another administrator to revoke your
+privileges on your behalf.""".splitlines(),
+)
+
+
+SELF_RETIRE_FORBIDDEN_MESSAGE: Final = " ".join(
+    """You are not allowed to retire yourself, because if you do so you
+would no longer be able to log in again. Please contact another
+administrator to set your retired flag on your behalf.""".splitlines(),
+)
+
 
 @app.post("/admin/edit-user/<int:user_id>")
 @pretty_exception_ignore_unauthorized
@@ -991,6 +1023,10 @@ async def handle_admin_edit_user_post(
     user_id: int,
 ) -> tuple[AsyncIterator[str], int] | AsyncIterator[str] | WerkzeugResponse:
     """Handle administrator edit user POST request."""
+    logged_in_user_id = get_user_id_from_session()
+
+    self_modification = logged_in_user_id == user_id
+
     user = APP_DATA["user"].get(user_id)
 
     if user is None:
@@ -1080,7 +1116,24 @@ async def handle_admin_edit_user_post(
     numeric_code = int(code)
 
     grant_admin = toggle_admin and not user.is_admin
-    revoke_admin = toggle_admin and user.is_admin
+    # Do not allow user to revoke their own admin permissions, or we
+    # could have some major problems if they are the last admin left.
+    wanted_revoke_admin = toggle_admin and user.is_admin
+    revoke_admin = wanted_revoke_admin and not self_modification
+
+    if self_modification:
+        if wanted_revoke_admin:
+            return await get_exception_page(
+                403,  # forbidden
+                "Forbidden",
+                SELF_REVOKE_ADMIN_FORBIDDEN_MESSAGE,
+            )
+        if retired:
+            return await get_exception_page(
+                403,  # forbidden
+                "Forbidden",
+                SELF_RETIRE_FORBIDDEN_MESSAGE,
+            )
 
     modify_user(
         user_id,
@@ -1113,7 +1166,7 @@ async def handle_admin_edit_user_change_password_get(
 ) -> tuple[AsyncIterator[str], int] | dict[str, object]:
     """Handle administrator edit user GET request."""
     ### Check that session is still valid
-    ##get_user_id_from_session()
+    ##logged_in_user_id = get_user_id_from_session()
 
     user = APP_DATA["user"].get(user_id)
 

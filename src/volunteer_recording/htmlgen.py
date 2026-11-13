@@ -1012,9 +1012,12 @@ def jinja_select_block(
 def jinja_checkbox(
     value_expression: str,
     /,
+    jinja_properties: Iterable[str] | None = None,
     **kwargs: TagArg,
 ) -> str:
     """Return checkbox with its checked state dependent on given expression."""
+    if jinja_properties is None:
+        jinja_properties = ()
     return jinja_arg_tag(
         "input",
         (
@@ -1022,6 +1025,7 @@ def jinja_checkbox(
                 {value_expression: 'checked="true" '},
                 block=False,
             ),
+            *jinja_properties,
         ),
         type_="checkbox",
         **kwargs,

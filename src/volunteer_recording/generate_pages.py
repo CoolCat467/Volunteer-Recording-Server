@@ -795,74 +795,6 @@ def generate_create_user_get() -> str:
     )
 
 
-##@save_template_as("success_body")
-##def generate_generic_success_page() -> str:
-##    """Generate generic success body."""
-##    refreshes_after = htmlgen.jinja_block("refreshes_after", "10", scoped=True, block=False)
-##    return_link = htmlgen.jinja_expression("self.return_link()")
-##    refresh_content = f"{refreshes_after};url={return_link}"
-##
-##    custom_css = "\n".join(
-##        (
-##            htmlgen.css(
-##                ".success_check",
-##                display="block",
-##                color="#198754",
-##                font_size="5rem",
-##                line_height=1,
-##                margin=("1rem", "0"),
-##            ),
-##            htmlgen.css(
-##                ".box",
-##                border=("2px", "solid", "limegreen"),
-##            ),
-##        ),
-##    )
-##
-##    head = "\n".join(
-##        (
-##            htmlgen.tag("meta", http_equiv="refresh", content=refresh_content),
-##            htmlgen.wrap_tag("style", custom_css),
-##        ),
-##    )
-##
-##    refresh_time_plural = htmlgen.jinja_number_plural(
-##        "self.refreshes_after()",
-##        "second",
-##    )
-##    refresh_time_display = f"{refreshes_after} {refresh_time_plural}"
-##
-##    message_content = htmlgen.wrap_tag(
-##        "p",
-##        htmlgen.jinja_expression("message"),
-##        block=False,
-##    )
-##    content = "\n".join(
-##        (
-##            message_content,
-##            htmlgen.wrap_tag(
-##                "span",
-##                "✓",
-##                block=False,
-##                class_="success_check center",
-##                aria_label="Success",
-##            ),
-##            htmlgen.tag("br"),
-##            htmlgen.jinja_block("message", scoped=True, required=True),
-##            htmlgen.tag("hr"),
-##            htmlgen.wrap_tag(
-##                "i",
-##                f"This page will automatically refresh after {refresh_time_display}.",
-##                block=False,
-##            ),
-##        ),
-##    )
-##    body = htmlgen.contain_in_box(content)
-##
-##
-##    return "\n".join(sections)
-
-
 @save_template_as("success")
 def generate_success_page() -> str:
     """Generate success response page."""
@@ -1222,6 +1154,14 @@ def generate_admin_edit_user_modify_user_get() -> str:
             ),
             htmlgen.jinja_checkbox(
                 "autofill_retired|default(false)",
+                jinja_properties=(
+                    htmlgen.jinja_if_block(
+                        {
+                            "self_modification": 'disabled="true" ',
+                        },
+                        block=False,
+                    ),
+                ),
                 id_="retired_checkbox",
                 name="retired",
             ),
@@ -1236,6 +1176,10 @@ def generate_admin_edit_user_modify_user_get() -> str:
 
     toggle_admin_button = htmlgen.jinja_if_block(
         {
+            "self_modification": htmlgen.wrap_tag(
+                "p",
+                "Changing your own privileges is forbidden.",
+            ),
             "is_admin": htmlgen.wrap_tag(
                 "button",
                 "Revoke Administrator Privileges",
@@ -1252,6 +1196,20 @@ def generate_admin_edit_user_modify_user_get() -> str:
                 style="".join(
                     htmlgen.css_style(border=("2px", "solid", "red")),
                 ).removesuffix(";"),
+            ),
+        },
+    )
+
+    self_modification_warning = htmlgen.jinja_if_block(
+        {
+            "self_modification": htmlgen.wrap_tag(
+                "p",
+                " ".join(
+                    """Some options are not able to be changed for the
+currently logged in user for system integrity purposes.
+Have another administrator change them on your
+behalf.""".splitlines(),
+                ),
             ),
         },
     )
@@ -1313,7 +1271,12 @@ def generate_admin_edit_user_modify_user_get() -> str:
         ),
     )
 
-    html = htmlgen.form("modify_user", form_content)
+    html = "\n".join(
+        (
+            self_modification_warning,
+            htmlgen.form("modify_user", form_content),
+        ),
+    )
 
     return template_admin_return_signout_footer(
         html,

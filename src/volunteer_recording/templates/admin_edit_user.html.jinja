@@ -1,13 +1,18 @@
 {% extends "admin_return_signout.html.jinja" %}
 {% block title scoped %}Edit User{% endblock title %}
 {% block body scoped %}
+{% if self_modification %}
+<p>
+  Some options are not able to be changed for the currently logged in user for system integrity purposes. Have another administrator change them on your behalf.
+</p>
+{% endif %}
 <form id="modify_user" name="modify_user" method="post">
   <table>
     {% include 'input_user_data.html.jinja' %}
     <tr>
       <td>
         <label for="retired_checkbox">Retired</label>
-        <input {% if autofill_retired|default(false) %}checked="true" {% endif %}type="checkbox" id="retired_checkbox" name="retired">
+        <input {% if autofill_retired|default(false) %}checked="true" {% endif %}{% if self_modification %}disabled="true" {% endif %}type="checkbox" id="retired_checkbox" name="retired">
       </td>
       <td>
         <p>Is Admin: <code>{{ is_admin }}</code></p>
@@ -16,7 +21,11 @@
     <tr>
       <td></td>
       <td>
-        {% if is_admin %}
+        {% if self_modification %}
+        <p>
+          Changing your own privileges is forbidden.
+        </p>
+        {% elif is_admin %}
         <button type="submit" name="toggle_admin">Revoke Administrator Privileges</button>
         {% else %}
         <button type="submit" name="toggle_admin" style="border: 2px solid red">Grant Administrator Privileges</button>
