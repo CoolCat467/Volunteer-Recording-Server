@@ -154,6 +154,36 @@ class SessionDatabase:
         del self.sessions[uuid]
 
 
+@dataclass
+class UnresolvedStampsCache:
+    """Getting all unresolved stamps is potentially computationally expensive, so cache them."""
+
+    events: dict[
+        database_bridge.StampType,
+        list[tuple[int, dt.date]],
+    ] = field(default_factory=dict)
+
+    def add_event(
+        self,
+        user_id: int,
+        event: tuple[dt.date, database_bridge.StampType],
+    ) -> None:
+        """Add event from adding a timestamp."""
+        print(f"add_event {user_id = } {event = }")
+        date, stamp = event
+        self.events.setdefault(stamp, []).append((user_id, date))
+
+    def get_unresolved_count(self) -> tuple[int, int]:
+        """Return tuple of unresolved check-ins and checkouts."""
+        event_counts: dict[database_bridge.StampType, int] = {}
+        for event_type, events in self.events.items():
+            event_counts[event_type] = len(events)
+        return (
+            event_counts.get(database_bridge.StampType.AUTO_CHECK_IN, 0),
+            event_counts.get(database_bridge.StampType.AUTO_CHECKOUT, 0),
+        )
+
+
 class AppData(TypedDict):
     """Global shared application data."""
 
@@ -161,6 +191,7 @@ class AppData(TypedDict):
     calendar: database_bridge.CalendarDatabase
     password: database_bridge.PasswordDatabase
     session: SessionDatabase
+    unresolved_cache: UnresolvedStampsCache
 
 
 app: Final = QuartTrio(  # pylint: disable=invalid-name
@@ -174,6 +205,7 @@ APP_DATA = AppData(
     calendar=database_bridge.CalendarDatabase(CALENDAR_DATA),
     password=database_bridge.PasswordDatabase(PASSWORD_DATA, PEPPER),
     session=SessionDatabase(),
+    unresolved_cache=UnresolvedStampsCache(),
 )
 
 
@@ -193,19 +225,6 @@ class SelectUserType(Enum):
     ADMIN_LOGIN = "/admin-login"
 
 
-def get_select_type_from_endpoint(endpoint: str) -> SelectUserType:
-    """Return select user type from endpoint name."""
-    if endpoint.startswith("check_in"):
-        return SelectUserType.CHECK_IN
-    if endpoint.startswith("check_out"):
-        return SelectUserType.CHECK_OUT
-    if endpoint.startswith("admin_login"):
-        return SelectUserType.ADMIN_LOGIN
-
-    assert len(SelectUserType) == 3
-    raise NotImplementedError(endpoint)
-
-
 def get_select_type_from_full_path(full_path: str) -> SelectUserType:
     """Return select user type from endpoint name."""
     parts = full_path.removeprefix("/").removesuffix("?").split("/", 1)
@@ -222,7 +241,7 @@ async def phone_input_get() -> AsyncIterator[str]:
 
 @app.get(SelectUserType.ADMIN_LOGIN.value)
 @pretty_exception
-async def admin_login_get() -> AsyncIterator[str]:
+async def admin_login_get() -> AsyncIterator[str] | WerkzeugResponse:
     """Handle admin login GET request."""
     # If user session is still valid, jump straight to admin page.
     if get_user_id_from_session_or_none() is not None:
@@ -635,12 +654,15 @@ def user_add_timestamp(
 ) -> None:
     """Add a timestamp for the given user. User ID must be valid."""
     calendar_db = APP_DATA["calendar"]
+    unresolved_cache = APP_DATA["unresolved_cache"]
     user_calendar = calendar_db[user_id]
 
-    user_calendar.add_timestamp(
-        database_bridge.StampType.CHECK_IN,
+    event = user_calendar.add_timestamp(
+        type_,
         dt.datetime.now(dt.UTC),
     )
+    if event is not None:
+        unresolved_cache.add_event(user_id, event)
 
 
 async def check_in_user_get(
@@ -844,7 +866,7 @@ pretty_exception_ignore_unauthorized = pretty_exception_ignore_bases(
 
 def active_session_required[**PS, T](
     function: Callable[PS, Awaitable[T]],
-) -> Callable[*PS, Awaitable[T | tuple[AsyncIterator[str], int]]]:
+) -> Callable[PS, Awaitable[T | tuple[AsyncIterator[str], int]]]:
     """Require session is valid decorator."""
 
     @pretty_exception_ignore_unauthorized
@@ -900,11 +922,73 @@ async def handle_admin_view_time_interval_get() -> tuple[
 
 @app.get("/admin/edit-entries")
 @active_session_required
-@pretty_exception
-async def handle_admin_edit_entries_get() -> tuple[AsyncIterator[str], int]:
+async def handle_admin_edit_entries_get() -> AsyncIterator[str]:
     """Handle administrator edit entries GET request."""
+    # calendar_db = APP_DATA["calendar"]
+    unresolved_cache = APP_DATA["unresolved_cache"]
+
+    unresolved_checkins, unresolved_checkouts = (
+        unresolved_cache.get_unresolved_count()
+    )
+
     return await stream_template(
         "admin_edit_entries.html.jinja",
+        unresolved_checkins=unresolved_checkins,
+        unresolved_checkouts=unresolved_checkouts,
+    )
+
+
+@app.get("/admin/edit-entries/checkins")
+@active_session_required
+async def handle_admin_edit_entries_checkins_get() -> tuple[
+    AsyncIterator[str],
+    int,
+]:
+    """Handle administrator edit entries GET request."""
+    # Check that session is still valid
+    user_id = get_user_id_from_session()
+
+    return await get_exception_page(
+        404,  # not found
+        "Not Found",
+        f"You are logged in as {user_id = }<br><i>This page has not been implemented yet™</i>",
+        return_link="/admin",
+    )
+
+
+@app.get("/admin/edit-entries/checkouts")
+@active_session_required
+async def handle_admin_edit_entries_checkouts_get() -> tuple[
+    AsyncIterator[str],
+    int,
+]:
+    """Handle administrator edit checkout entries GET request."""
+    # Check that session is still valid
+    user_id = get_user_id_from_session()
+
+    return await get_exception_page(
+        404,  # not found
+        "Not Found",
+        f"You are logged in as {user_id = }<br><i>This page has not been implemented yet™</i>",
+        return_link="/admin/edit-entries",
+    )
+
+
+@app.get("/admin/edit-entries/new-entry/select-user")
+@active_session_required
+async def handle_admin_edit_entries_new_entry_select_user_get() -> tuple[
+    AsyncIterator[str],
+    int,
+]:
+    """Handle administrator edit checkout entries GET request."""
+    # Check that session is still valid
+    user_id = get_user_id_from_session()
+
+    return await get_exception_page(
+        404,  # not found
+        "Not Found",
+        f"You are logged in as {user_id = }<br><i>This page has not been implemented yet™</i>",
+        return_link="/admin/edit-entries",
     )
 
 
@@ -1165,7 +1249,7 @@ async def handle_admin_edit_user_post(
 @active_session_required
 async def handle_admin_edit_user_change_password_get(
     user_id: int,
-) -> tuple[AsyncIterator[str], int] | dict[str, object]:
+) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
     """Handle administrator edit user change password GET request."""
     user = APP_DATA["user"].get(user_id)
 
@@ -1202,7 +1286,7 @@ def grant_admin_privileges(user_id: int, password: str) -> None:
 @active_session_required
 async def handle_admin_edit_user_change_password_post(
     user_id: int,
-) -> tuple[AsyncIterator[str], int] | dict[str, object]:
+) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
     """Handle administrator edit user change password POST request."""
     user = APP_DATA["user"].get(user_id)
 
@@ -1291,6 +1375,15 @@ def create_user_console() -> int:
     )
     print(f"Created new user ({user_id = })")
     return user_id
+
+
+def add_unresolved_events_to_cache() -> None:
+    """Add all unresolved events to the unresolved cache."""
+    calendar_db = APP_DATA["calendar"]
+    unresolved_cache = APP_DATA["unresolved_cache"]
+
+    for user_id, event in calendar_db.yield_all_automatic_locations():
+        unresolved_cache.add_event(user_id, event)
 
 
 async def async_run_server(

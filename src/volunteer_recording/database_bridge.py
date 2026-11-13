@@ -270,13 +270,15 @@ class Calendar:
         self,
         type_: StampType,
         datetime: dt.datetime,
-    ) -> None:
+    ) -> tuple[dt.date, StampType] | None:
         """Add timestamp of given time from given datetime."""
         date = datetime.date()
         time = datetime.time()
 
         # This was a nightmare to figure out how to get it to work
         # properly. Would advise not touching.
+
+        auto_event: tuple[dt.date, StampType] | None = None
 
         if type_ not in (StampType.AUTO_CHECK_IN, StampType.AUTO_CHECKOUT):
             if type_ == StampType.CHECK_IN:
@@ -289,17 +291,23 @@ class Calendar:
                     StampType.AUTO_CHECK_IN,
                     date,
                     (datetime - dt.timedelta(minutes=1)).time(),
-                )  # datetime.time())
+                )
+                auto_event = date, StampType.AUTO_CHECK_IN
             elif type_ == StampType.CHECK_IN and events.needs_checkout():
                 self._add_timestamp(
                     StampType.AUTO_CHECKOUT,
                     date,
                     (datetime - dt.timedelta(minutes=1)).time(),
                 )
+                auto_event = date, StampType.AUTO_CHECKOUT
 
         self._add_timestamp(type_, date, time)
+        return auto_event
 
-    def end_of_day_check_missing_stamp(self, date: dt.date) -> None:
+    def end_of_day_check_missing_stamp(
+        self,
+        date: dt.date,
+    ) -> tuple[dt.date, StampType] | None:
         """Add a missing checkout stamp."""
         events = self.get_event_counts(date)
 
@@ -309,21 +317,44 @@ class Calendar:
                 date,
                 dt.time(23, 59, 59),
             )
+            return date, StampType.AUTO_CHECKOUT
+        return None
 
     def yield_automatic_locations(
         self,
-    ) -> Generator[tuple[dt.date, int, dt.time, dt.time]]:
-        """Yield (date, index, minimum time, maximum time) tuples of all automatically added timestamps."""
+        date: dt.date,
+    ) -> Generator[tuple[int, dt.time, dt.time]]:
+        """Yield (index, minimum time, maximum time) tuples of all automatically added timestamps from a given date."""
+        timestamps = self.days.get(date, ())
+        prior_time = dt.time()
+        for index, timestamp in enumerate(timestamps):
+            next_time = timestamp.time
+            if timestamp.type_ in (
+                StampType.AUTO_CHECK_IN,
+                StampType.AUTO_CHECKOUT,
+            ):
+                yield index, prior_time, next_time
+            prior_time = next_time
+
+    def yield_all_automatic_locations(
+        self,
+    ) -> Generator[tuple[dt.date, tuple[int, dt.time, dt.time]]]:
+        """Yield (date, (index, minimum time, maximum time)) tuples of all automatically added timestamps."""
+        for date in self.days:
+            for event in self.yield_automatic_locations(date):
+                yield date, event
+
+    def yield_all_unresolved_events(
+        self,
+    ) -> Generator[tuple[dt.date, StampType]]:
+        """Yield (date, StampType) tuples for all unresolved events."""
         for date, timestamps in self.days.items():
-            prior_time = dt.time()
-            for index, timestamp in enumerate(timestamps):
-                next_time = timestamp.time
+            for timestamp in timestamps:
                 if timestamp.type_ in (
                     StampType.AUTO_CHECK_IN,
                     StampType.AUTO_CHECKOUT,
                 ):
-                    yield date, index, prior_time, next_time
-                prior_time = next_time
+                    yield date, timestamp.type_
 
     def replace_timestamp(
         self,
@@ -379,6 +410,14 @@ class CalendarDatabase(Database[Calendar]):
             | orjson.OPT_OMIT_MICROSECONDS
             | orjson.OPT_NON_STR_KEYS,
         )
+
+    def yield_all_automatic_locations(
+        self,
+    ) -> Generator[tuple[int, tuple[dt.date, StampType]]]:
+        """Yield (user_id, (date, stamp type)) automatic event tuples."""
+        for user_id, calendar in enumerate(self):
+            for event in calendar.yield_all_unresolved_events():
+                yield user_id, event
 
 
 class PasswordDatabase(MappingDatabase[int, str]):
