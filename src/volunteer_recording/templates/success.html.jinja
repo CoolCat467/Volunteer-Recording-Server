@@ -1,4 +1,4 @@
-{% extends "base.html.jinja" %}
+{% extends "return_footer.html.jinja" %}
 {% block title scoped %}Success{% endblock title %}
 {% block head scoped %}
 <meta http-equiv="refresh" content="{{ refreshes_after|default(10) }};url=/">
@@ -20,7 +20,7 @@
   <p>{{ message }}</p>
   <span class="success_check center" aria-label="Success">✓</span>
   <br>
-  <a class="submit_button" href="/">Return to main page</a>
+  {{ super() -}}
   <hr>
   <i>This page will automatically refresh after {{ refreshes_after|default(10) }} second{% if refreshes_after|default(10) > 1 %}s{% elif refreshes_after|default(10) == 0 %}s{% endif %}.</i>
 </div>

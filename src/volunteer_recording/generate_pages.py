@@ -447,6 +447,72 @@ def generate_root() -> str:
     return template(html, title="Volunteer Recording", head=head)
 
 
+@save_template_as("return_footer")
+def return_footer_page() -> str:
+    """Generate return footer page."""
+    return_button = htmlgen.wrap_tag(
+        "a",
+        htmlgen.jinja_block(
+            "return_text",
+            "Return to main page",
+            scoped=True,
+            block=False,
+        ),
+        block=False,
+        class_="submit_button",
+        href=htmlgen.jinja_block(
+            "return_link",
+            "/",
+            scoped=True,
+            block=False,
+        ),
+    )
+
+    return template(return_button)
+
+
+def template_return_footer(
+    body: str | None = None,
+    *,
+    title: str | None = None,
+    head: str | None = None,
+    lang: str = "en",
+    return_text: str | None = None,
+    return_link: str | None = None,
+    extends: str = "return_footer",
+) -> str:
+    """Use admin signout footer HTML Template for application."""
+    sections = [
+        htmlgen.jinja_extends(f"{extends}.html.jinja"),
+    ]
+
+    if title is not None:
+        sections.append(
+            htmlgen.jinja_block("title", title, block=False, scoped=True),
+        )
+
+    if head is not None:
+        sections.append(htmlgen.jinja_block("head", head, scoped=True))
+
+    if lang != "en":
+        sections.append(htmlgen.jinja_block("lang", lang, scoped=True))
+
+    if return_text is not None:
+        sections.append(
+            htmlgen.jinja_block("return_text", return_text, scoped=True),
+        )
+
+    if return_link is not None:
+        sections.append(
+            htmlgen.jinja_block("return_link", return_link, scoped=True),
+        )
+
+    if body is not None:
+        sections.append(htmlgen.jinja_block("body", body, scoped=True))
+
+    return "\n".join(sections)
+
+
 @save_template_as("phone_input")
 def generate_phone_input() -> str:
     """Generate phone digits input GET page."""
@@ -473,36 +539,40 @@ def generate_phone_input() -> str:
         ),
     )
 
-    html = "<br>\n".join(
-        (
-            htmlgen.wrap_tag(
-                "div",
-                htmlgen.form(
-                    "phone_digits",
-                    htmlgen.input_field(
-                        "digits",
-                        None,
-                        attrs={
-                            "inputmode": "numeric",
-                            "pattern": "[0-9]{4}",
-                            "maxlength": "4",
-                            "minlength": "4",
-                            "min": 0,
-                            "max": 9999,
-                            "autocomplete": "off",
-                            "required": True,
-                            "autofocus": True,
-                            "class": "giga_input",
-                        },
-                    ),
-                    "Submit",
-                ),
-                class_="center",
+    body = htmlgen.wrap_tag(
+        "div",
+        htmlgen.form(
+            "phone_digits",
+            htmlgen.input_field(
+                "code",
+                None,
+                attrs={
+                    "inputmode": "numeric",
+                    "pattern": "[0-9]{4}",
+                    "maxlength": "4",
+                    "minlength": "4",
+                    "min": 0,
+                    "max": 9999,
+                    "autocomplete": "off",
+                    "required": True,
+                    "autofocus": True,
+                    "class": "giga_input",
+                },
             ),
+            "Submit",
+        ),
+        class_="center",
+    )
+
+    html = "\n".join(
+        (
+            body,
+            htmlgen.tag("br"),
+            htmlgen.jinja_super_block(),
         ),
     )
 
-    return template(
+    return template_return_footer(
         html,
         title="Enter the last 4 digits of your phone number",
         head=head,
@@ -552,27 +622,12 @@ def generate_select_user_get() -> str:
         class_="user-table center",
     )
 
-    ##hidden_digits_field = htmlgen.tag(
-    ##    "input",
-    ##    type_="hidden",
-    ##    name="digits",
-    ##    value=htmlgen.jinja_expression("digits"),
-    ##)
-
     back_link = htmlgen.wrap_tag(
         "a",
         "Enter a different code",
         block=False,
         class_="submit_button",
         href=return_link,
-    )
-
-    return_root = htmlgen.wrap_tag(
-        "a",
-        "Return to main page",
-        block=False,
-        class_="submit_button",
-        href="/",
     )
 
     create_new_user_button = htmlgen.wrap_tag(
@@ -589,12 +644,11 @@ def generate_select_user_get() -> str:
 
     form_content = "\n".join(  # noqa: FLY002
         (
-            # hidden_digits_field,
             user_list,
             "<br>",
+            htmlgen.jinja_super_block(),
             back_link,
             create_new_user_section,
-            return_root,
         ),
     )
 
@@ -604,9 +658,10 @@ def generate_select_user_get() -> str:
         {
             "show_create": " or create a new account",
         },
+        block=False,
     )
 
-    return template(
+    return template_return_footer(
         html,
         title=f"Select your user{title_extra}",
     )
@@ -623,14 +678,6 @@ def generate_create_user_get() -> str:
         block=False,
         class_="submit_button",
         href=return_link,
-    )
-
-    return_root = htmlgen.wrap_tag(
-        "a",
-        "Return to main page",
-        block=False,
-        class_="submit_button",
-        href="/",
     )
 
     submit_button = htmlgen.wrap_tag(
@@ -708,7 +755,7 @@ def generate_create_user_get() -> str:
                         htmlgen.wrap_tag(
                             "td",
                             htmlgen.input_field(
-                                "digits",
+                                "code",
                                 "Last 4 digits of phone number",
                                 attrs={
                                     "required": True,
@@ -721,7 +768,7 @@ def generate_create_user_get() -> str:
                                     "max": 9999,
                                     "size": 4,
                                     "value": htmlgen.jinja_expression(
-                                        "autofill_digits|default('')",
+                                        "autofill_code|default('')",
                                     ),
                                 },
                             ),
@@ -743,16 +790,16 @@ def generate_create_user_get() -> str:
                 htmlgen.wrap_tag("table", input_fields_table),
                 scoped=True,
             ),
-            "<br>",
+            htmlgen.tag("br"),
+            htmlgen.jinja_super_block(),
             back_link,
-            return_root,
             submit_button,
         ),
     )
 
     html = htmlgen.form("create_user", form_content)
 
-    return template(
+    return template_return_footer(
         html,
         title="Create a new account",
     )
@@ -794,14 +841,6 @@ def generate_success_page() -> str:
     )
     refresh_time_display = f"{refreshes_after} {refresh_time_plural}"
 
-    return_root = htmlgen.wrap_tag(
-        "a",
-        "Return to main page",
-        block=False,
-        class_="submit_button",
-        href="/",
-    )
-
     message_content = htmlgen.wrap_tag(
         "p",
         htmlgen.jinja_expression("message"),
@@ -818,7 +857,7 @@ def generate_success_page() -> str:
                 aria_label="Success",
             ),
             htmlgen.tag("br"),
-            return_root,
+            htmlgen.jinja_super_block(),
             htmlgen.tag("hr"),
             htmlgen.wrap_tag(
                 "i",
@@ -828,7 +867,7 @@ def generate_success_page() -> str:
         ),
     )
     body = htmlgen.contain_in_box(content)
-    return template(
+    return template_return_footer(
         body,
         title="Success",
         head=head,
@@ -859,14 +898,6 @@ def generate_prompt_password_get() -> str:
         href="/admin-login",
     )
 
-    return_root = htmlgen.wrap_tag(
-        "a",
-        "Return to main page",
-        block=False,
-        class_="submit_button",
-        href="/",
-    )
-
     submit_button = htmlgen.wrap_tag(
         "button",
         "Submit",
@@ -893,8 +924,8 @@ def generate_prompt_password_get() -> str:
             password_field_block,
             htmlgen.tag("br"),
             htmlgen.tag("br"),
+            htmlgen.jinja_super_block(),
             back_link,
-            return_root,
             submit_button,
         ),
     )
@@ -909,7 +940,7 @@ def generate_prompt_password_get() -> str:
         ),
     )
 
-    return template(
+    return template_return_footer(
         body,
         title="Enter Password",
     )
@@ -918,15 +949,10 @@ def generate_prompt_password_get() -> str:
 @save_template_as("admin_signout")
 def admin_signout_page() -> str:
     """Generate admin signout page."""
-    signout_button = htmlgen.wrap_tag(
-        "a",
-        "Sign out",
-        block=False,
-        class_="submit_button",
-        href="/admin/signout",
+    return template_return_footer(
+        return_text="Sign out",
+        return_link="/admin/signout",
     )
-
-    return template(signout_button)
 
 
 def template_admin_signout_footer(

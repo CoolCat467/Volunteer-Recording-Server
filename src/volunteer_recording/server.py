@@ -43,6 +43,7 @@ from typing import (
     Any,
     Final,
     TypedDict,
+    Unpack,
 )
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
@@ -224,21 +225,21 @@ async def phone_input_post() -> (
     multi_dict = await request.form
     form = multi_dict.to_dict()
 
-    digits = form.get("digits")
+    code = form.get("code")
 
     source_page = request.full_path.removesuffix("?")
 
     errors = []
-    if not digits:
-        errors.append("Missing <code>digits</code> field.")
-    if not isinstance(digits, str):
-        errors.append("<code>digits</code> field type must be a string.")
-    elif len(digits) != 4:
+    if not code:
+        errors.append("Missing <code>code</code> field.")
+    if not isinstance(code, str):
+        errors.append("<code>code</code> field type must be a string.")
+    elif len(code) != 4:
         errors.append(
-            "<code>digits</code> field must be exactly 4 characters long.",
+            "<code>code</code> field must be exactly 4 characters long.",
         )
-    elif not digits.isdecimal():
-        errors.append("<code>digits</code> field value must be a decimal.")
+    elif not code.isdecimal():
+        errors.append("<code>code</code> field value must be a decimal.")
     if errors:
         return await get_exception_page(
             400,  # bad request
@@ -247,10 +248,10 @@ async def phone_input_post() -> (
             return_link=source_page,
         )
 
-    assert isinstance(digits, str)
+    assert isinstance(code, str)
 
-    code = int(digits)
-    params = urlencode({"digits": f"{code:04}"})
+    numeric_code = int(code)
+    params = urlencode({"code": f"{numeric_code:04}"})
     return app.redirect(f"{source_page}/select-user?{params}")
 
 
@@ -295,19 +296,19 @@ async def select_user_get() -> (
     """Handle select user GET request."""
     args = request.args.to_dict()
 
-    digits = args.get("digits")
+    code = args.get("code")
 
     select_type = get_select_type_from_full_path(request.full_path)
 
     errors = []
-    if not digits:
-        errors.append("Missing <code>digits</code> argument.")
-    elif len(digits) != 4:
+    if not code:
+        errors.append("Missing <code>code</code> argument.")
+    elif len(code) != 4:
         errors.append(
-            "<code>digits</code> argument must be exactly 4 characters long.",
+            "<code>code</code> argument must be exactly 4 characters long.",
         )
-    elif not digits.isdecimal():
-        errors.append("<code>digits</code> argument value must be a decimal.")
+    elif not code.isdecimal():
+        errors.append("<code>code</code> argument value must be a decimal.")
     if errors:
         return await get_exception_page(
             400,  # bad request
@@ -316,12 +317,12 @@ async def select_user_get() -> (
             return_link=select_type.value,
         )
 
-    assert digits is not None
+    assert code is not None
 
     is_admin = select_type == SelectUserType.ADMIN_LOGIN
 
     return await stream_select_user(
-        code=int(digits),
+        code=int(code),
         return_link=select_type.value,
         is_admin=is_admin,
     )
@@ -349,7 +350,7 @@ async def select_user_post() -> (
     args = request.args.to_dict()
 
     create_user = "create_user" in form
-    digits = args.get("digits")
+    code = args.get("code")
     user_id = form.get("user_id")
 
     select_type = get_select_type_from_full_path(request.full_path)
@@ -359,14 +360,14 @@ async def select_user_post() -> (
     source_page = select_type.value
 
     errors = []
-    if action_create and digits:
-        if len(digits) != 4:
+    if action_create and code is not None:
+        if len(code) != 4:
             errors.append(
-                "<code>digits</code> argument must be exactly 4 characters long.",
+                "<code>code</code> argument must be exactly 4 characters long.",
             )
-        elif not digits.isdecimal():
+        elif not code.isdecimal():
             errors.append(
-                "<code>digits</code> argument value must be a decimal.",
+                "<code>code</code> argument value must be a decimal.",
             )
     else:
         if not isinstance(user_id, str):
@@ -385,8 +386,8 @@ async def select_user_post() -> (
 
     if action_create:
         params_dict = {}
-        if digits is not None:
-            params_dict["digits"] = f"{int(digits):04}"
+        if code is not None:
+            params_dict["code"] = f"{int(code):04}"
 
         params = urlencode(params_dict)
         extra = f"?{params}" if params else ""
@@ -413,20 +414,20 @@ async def create_user_get() -> (
     """Handle create user GET request."""
     args = request.args.to_dict()
 
-    digits = args.get("digits")
+    code = args.get("code")
 
     select_type = get_select_type_from_full_path(request.full_path)
     source_page = select_type.value
 
     errors = []
-    if digits is not None:
-        if len(digits) != 4:
+    if code is not None:
+        if len(code) != 4:
             errors.append(
-                "<code>digits</code> argument must be exactly 4 characters long.",
+                "<code>code</code> argument must be exactly 4 characters long.",
             )
-        elif not digits.isdecimal():
+        elif not code.isdecimal():
             errors.append(
-                "<code>digits</code> argument value must be a decimal.",
+                "<code>code</code> argument value must be a decimal.",
             )
     if errors:
         return await get_exception_page(
@@ -436,17 +437,17 @@ async def create_user_get() -> (
             return_link=source_page,
         )
 
-    autofill_digits: int | None = None
-    if digits is not None:
-        autofill_digits = int(digits)
+    autofill_code: int | None = None
+    if code is not None:
+        autofill_code = int(code)
 
     return await stream_template(
         "create_user.html.jinja",
-        return_link=f"{source_page}/select-user?digits={autofill_digits:04}",
+        return_link=f"{source_page}/select-user?code={autofill_code:04}",
         # autofill_firstname=autofill_firstname,
         # autofill_lastname=autofill_lastname,
         # autofill_birthday=autofill_birthday,
-        autofill_digits=f"{autofill_digits:04}",
+        autofill_code=f"{autofill_code:04}",
     )
 
 
@@ -507,7 +508,7 @@ async def create_user_post() -> (
     firstname = form.get("firstname")
     lastname = form.get("lastname")
     date_of_birth = form.get("date_of_birth")
-    digits = form.get("digits")
+    code = form.get("code")
 
     select_type = get_select_type_from_full_path(request.full_path)
 
@@ -549,16 +550,16 @@ async def create_user_post() -> (
             "<code>date_of_birth</code> field type must be an ISO date.",
         )
 
-    if not digits:
-        errors.append("Missing <code>digits</code> field.")
-    elif not isinstance(digits, str):
-        errors.append("<code>digits</code> field type must be a string.")
-    elif len(digits) != 4:
+    if not code:
+        errors.append("Missing <code>code</code> field.")
+    elif not isinstance(code, str):
+        errors.append("<code>code</code> field type must be a string.")
+    elif len(code) != 4:
         errors.append(
-            "<code>digits</code> field must be exactly 4 characters long.",
+            "<code>code</code> field must be exactly 4 characters long.",
         )
-    elif not digits.isdecimal():
-        errors.append("<code>digits</code> field value must be a decimal.")
+    elif not code.isdecimal():
+        errors.append("<code>code</code> field value must be a decimal.")
 
     if errors:
         return await get_exception_page(
@@ -568,20 +569,20 @@ async def create_user_post() -> (
             return_link=request.full_path.removesuffix("?"),
         )
 
-    assert firstname is not None
-    assert lastname is not None
-    assert date_of_birth is not None
-    assert digits is not None
+    assert isinstance(firstname, str)
+    assert isinstance(lastname, str)
+    assert isinstance(date_of_birth, str)
+    assert isinstance(code, str)
 
     date_of_birth_date = dt.date.fromisoformat(date_of_birth)
     assert date_of_birth_date is not None
-    numeric_digits = int(digits)
+    numeric_code = int(code)
 
     user_id = create_new_user(
         firstname,
         lastname,
         date_of_birth_date,
-        numeric_digits,
+        numeric_code,
     )
 
     if select_type == SelectUserType.CHECK_IN:
@@ -876,25 +877,11 @@ async def handle_admin_edit_categories_get() -> tuple[AsyncIterator[str], int]:
     )
 
 
-def admin_reset_password(user_id: int, password: str) -> None:
-    """Set the password for given user to given value."""
-    password_db = APP_DATA["password"]
-    password_db.set_password(user_id, password)
-
-
-def grant_admin_privileges(user_id: int, password: str) -> None:
-    """Grant admin privileges to given user and set their password."""
-    user_db = APP_DATA["user"]
-    user_db[user_id] = user_db[user_id].get_modified_copy(is_admin=True)
-
-    admin_reset_password(user_id, password)
-
-
 @app.get("/admin/edit-user")
 @pretty_exception_ignore_unauthorized
 @login_required
-async def handle_admin_edit_users_get() -> AsyncIterator[str]:
-    """Handle administrator users GET request."""
+async def handle_admin_edit_user_get() -> AsyncIterator[str]:
+    """Handle administrator user GET request."""
     ### Check that session is still valid
     ##get_user_id_from_session()
 
@@ -909,10 +896,190 @@ async def handle_admin_edit_users_get() -> AsyncIterator[str]:
 @app.get("/admin/edit-user/<int:user_id>")
 @pretty_exception_ignore_unauthorized
 @login_required
-async def admin_edit_user_get(
+async def handle_admin_edit_user_view_user_get(
     user_id: int,
 ) -> tuple[AsyncIterator[str], int] | dict[str, object]:
-    """Handle user selected GET request."""
+    """Handle administrator edit user GET request."""
+    ### Check that session is still valid
+    ##get_user_id_from_session()
+
+    user = APP_DATA["user"].get(user_id)
+
+    if user is None:
+        return await get_exception_page(
+            404,  # not found
+            "Not Found",
+            "User not found.",
+            return_link="/admin/edit-user",
+        )
+
+    # TODO: Edit user template
+    return dict(orjson.loads(orjson.dumps(user)))
+
+
+def admin_reset_password(user_id: int, password: str) -> None:
+    """Set the password for given user to given value."""
+    password_db = APP_DATA["password"]
+    password_db.set_password(user_id, password)
+
+
+def grant_admin_privileges(user_id: int, password: str) -> None:
+    """Grant admin privileges to given user and set their password."""
+    user_db = APP_DATA["user"]
+    user_db[user_id] = user_db[user_id].get_modified_copy(is_admin=True)
+
+    admin_reset_password(user_id, password)
+
+
+def modify_user(
+    user_id: int,
+    **changes: Unpack[database_bridge.UserRecordKwargs],
+) -> None:
+    """Set various attributes on a given user to new values."""
+    user_db = APP_DATA["user"]
+
+    # Apply changes
+    user_db[user_id] = user_db[user_id].get_modified_copy(**changes)
+
+    assert (
+        "is_admin"
+        in database_bridge.UserRecordKwargs.__optional_keys__
+        | database_bridge.UserRecordKwargs.__readonly_keys__
+    )
+    new_is_admin = changes.get("is_admin")
+    if new_is_admin is None or new_is_admin:
+        return
+
+    # Delete password entry
+    password_db = APP_DATA["password"]
+    del password_db[user_id]
+
+
+@app.post("/admin/edit-user/<int:user_id>")
+@pretty_exception_ignore_unauthorized
+@login_required
+async def handle_admin_edit_user_post(
+    user_id: int,
+) -> tuple[AsyncIterator[str], int] | WerkzeugResponse:
+    """Handle administrator edit user POST request."""
+    user = APP_DATA["user"].get(user_id)
+
+    if user is None:
+        return await get_exception_page(
+            404,  # not found
+            "Not Found",
+            "User not found.",
+            return_link="/admin/edit-user",
+        )
+
+    multi_dict = await request.form
+    form = multi_dict.to_dict()
+
+    firstname = form.get("firstname")
+    lastname = form.get("lastname")
+    date_of_birth = form.get("date_of_birth")
+    code = form.get("code")
+    retired = form.get("retired") is not None
+    toggle_admin = form.get("toggle_admin") is not None
+
+    errors = []
+    if not firstname:
+        errors.append("Missing <code>firstname</code> field.")
+    elif not isinstance(firstname, str):
+        errors.append("<code>firstname</code> field type must be a string.")
+    elif len(firstname) < 2:
+        errors.append(
+            "<code>firstname</code> field must be at least 2 characters long.",
+        )
+    elif len(firstname) > 100:
+        errors.append(
+            "<code>firstname</code> field must be at most 100 characters long.",
+        )
+
+    if not lastname:
+        errors.append("Missing <code>lastname</code> field.")
+    elif not isinstance(lastname, str):
+        errors.append("<code>lastname</code> field type must be a string.")
+    elif len(lastname) < 2:
+        errors.append(
+            "<code>lastname</code> field must be at least 2 characters long.",
+        )
+    elif len(lastname) > 100:
+        errors.append(
+            "<code>lastname</code> field must be at most 100 characters long.",
+        )
+
+    if not date_of_birth:
+        errors.append("Missing <code>date_of_birth</code> field.")
+    elif not isinstance(date_of_birth, str):
+        errors.append(
+            "<code>date_of_birth</code> field type must be a string.",
+        )
+    elif parse_iso_date(date_of_birth) is None:
+        errors.append(
+            "<code>date_of_birth</code> field type must be an ISO date.",
+        )
+
+    if not code:
+        errors.append("Missing <code>code</code> field.")
+    elif not isinstance(code, str):
+        errors.append("<code>code</code> field type must be a string.")
+    elif len(code) != 4:
+        errors.append(
+            "<code>code</code> field must be exactly 4 characters long.",
+        )
+    elif not code.isdecimal():
+        errors.append("<code>code</code> field value must be a decimal.")
+
+    source_page = request.full_path.removesuffix("?")
+
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=source_page,
+        )
+
+    assert isinstance(firstname, str)
+    assert isinstance(lastname, str)
+    assert isinstance(date_of_birth, str)
+    assert isinstance(code, str)
+
+    date_of_birth_date = dt.date.fromisoformat(date_of_birth)
+    assert date_of_birth_date is not None
+    numeric_code = int(code)
+
+    grant_admin = toggle_admin and not user.is_admin
+
+    modify_user(
+        user_id,
+        firstname=firstname,
+        lastname=lastname,
+        date_of_birth=date_of_birth_date,
+        code=numeric_code,
+        retired=retired,
+        # If granting admin, will handle setting admin with
+        # grant_admin_privileges later. Otherwise,
+        is_admin=False,
+    )
+
+    if grant_admin:
+        return app.redirect(f"{source_page}/change-password")
+
+    return app.redirect(source_page)
+
+
+@app.get("/admin/edit-user/<int:user_id>/change-password")
+@pretty_exception_ignore_unauthorized
+@login_required
+async def handle_admin_edit_user_change_password_get(
+    user_id: int,
+) -> tuple[AsyncIterator[str], int] | dict[str, object]:
+    """Handle administrator edit user GET request."""
+    ### Check that session is still valid
+    ##get_user_id_from_session()
+
     user = APP_DATA["user"].get(user_id)
 
     if user is None:

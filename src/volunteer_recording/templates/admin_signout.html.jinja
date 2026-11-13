@@ -1,4 +1,7 @@
-{% extends "base.html.jinja" %}
-{% block body scoped %}
-<a class="submit_button" href="/admin/signout">Sign out</a>
-{% endblock body %}
+{% extends "return_footer.html.jinja" %}
+{% block return_text scoped %}
+Sign out
+{% endblock return_text %}
+{% block return_link scoped %}
+/admin/signout
+{% endblock return_link %}
