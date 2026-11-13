@@ -1184,6 +1184,7 @@ async def handle_admin_edit_user_change_password_get(
 
     return await stream_template(
         "prompt_new_password.html.jinja",
+        update_password=user.is_admin,
         user_id=user_id,
     )
 

@@ -626,7 +626,7 @@ def generate_select_user_get() -> str:
             "records_exist": user_list,
             "show_create": htmlgen.wrap_tag(
                 "p",
-                "No users currently exist with this code. Press the button below to create one.",
+                "No users currently exist with the provided code. Press the button below to create one.",
                 block=False,
             ),
             "": htmlgen.wrap_tag(
@@ -1352,16 +1352,47 @@ def generate_admin_edit_user_new_password_get() -> str:
         ),
     )
 
+    change_type = htmlgen.jinja_if_block(
+        {
+            "update_password": "enter a new",
+            "": "set a",
+        },
+        block=False,
+    )
+
+    extra = htmlgen.jinja_if_block(
+        {
+            "not update_password": " Leaving this page will abort granting administrator privileges.",
+        },
+        block=False,
+    )
+
     body = htmlgen.contain_in_box(
-        htmlgen.form(
-            "new_password_prompt",
-            contents,
+        "\n".join(
+            (
+                htmlgen.wrap_tag(
+                    "p",
+                    f"Changes from the prior screen has been saved. Please {change_type} password for this user.{extra}",
+                ),
+                htmlgen.form(
+                    "new_password_prompt",
+                    contents,
+                ),
+            ),
         ),
+    )
+
+    change_title = htmlgen.jinja_if_block(
+        {
+            "update_password": "Change",
+            "": "Set",
+        },
+        block=False,
     )
 
     return template_admin_return_signout_footer(
         body,
-        title="Change Password",
+        title=f"{change_title} Password",
     )
 
 
