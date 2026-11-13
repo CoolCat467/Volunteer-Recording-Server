@@ -1179,6 +1179,24 @@ def generate_admin_edit_user_modify_user_get() -> str:
         block=False,
     )
 
+    current_admin_status_message = htmlgen.wrap_tag(
+        "p",
+        f"Is Admin: {is_admin}",
+        block=False,
+    )
+
+    change_password_button = htmlgen.jinja_if_block(
+        {
+            "is_admin": htmlgen.wrap_tag(
+                "button",
+                "Change Password",
+                block=False,
+                type_="submit",
+                name="change_password",
+            ),
+        },
+    )
+
     toggle_admin_button = htmlgen.jinja_if_block(
         {
             "self_modification": htmlgen.wrap_tag(
@@ -1200,29 +1218,9 @@ def generate_admin_edit_user_modify_user_get() -> str:
                 name="toggle_admin",
                 style="".join(
                     htmlgen.css_style(border=("2px", "solid", "red")),
-                ).removesuffix(";"),
+                )[:-1],
             ),
         },
-    )
-
-    self_modification_warning = htmlgen.jinja_if_block(
-        {
-            "self_modification": htmlgen.wrap_tag(
-                "p",
-                " ".join(
-                    """Some options are forbidden from being changed for
-the currently logged in user for system integrity purposes. Have another
-administrator change them on your behalf.""".splitlines(),
-                ),
-                block=False,
-            ),
-        },
-    )
-
-    current_admin_status_message = htmlgen.wrap_tag(
-        "p",
-        f"Is Admin: {is_admin}",
-        block=False,
     )
 
     row1_elements = (
@@ -1232,7 +1230,7 @@ administrator change them on your behalf.""".splitlines(),
     row2 = htmlgen.table_row(
         "\n".join(
             (
-                htmlgen.table_cell("", block=False),
+                htmlgen.table_cell(change_password_button, block=False),
                 htmlgen.table_cell(toggle_admin_button),
             ),
         ),
@@ -1276,6 +1274,20 @@ administrator change them on your behalf.""".splitlines(),
         ),
     )
 
+    self_modification_warning = htmlgen.jinja_if_block(
+        {
+            "self_modification": htmlgen.wrap_tag(
+                "p",
+                " ".join(
+                    """Some options are forbidden from being changed for
+the currently logged in user for system integrity purposes. Have another
+administrator change them on your behalf.""".splitlines(),
+                ),
+                block=False,
+            ),
+        },
+    )
+
     html = "\n".join(
         (
             self_modification_warning,
@@ -1288,6 +1300,68 @@ administrator change them on your behalf.""".splitlines(),
         title="Edit User",
         sign_out_text="Sign out without saving",
         return_admin_panel_text="Return to admin panel without saving",
+    )
+
+
+@save_template_as("prompt_new_password")
+def generate_admin_edit_user_new_password_get() -> str:
+    """Generate prompt new password page."""
+    user_id = htmlgen.jinja_expression("user_id")
+
+    back_link = htmlgen.wrap_tag(
+        "a",
+        "Back to edit user without saving",
+        block=False,
+        class_="submit_button",
+        href=f"/admin/edit-user/{user_id}",
+    )
+
+    submit_button = htmlgen.wrap_tag(
+        "button",
+        "Submit",
+        block=False,
+        type_="submit",
+    )
+
+    password_field_block = htmlgen.jinja_block(
+        "password_field",
+        htmlgen.input_field(
+            "new_password",
+            "Password",
+            attrs={
+                "required": True,
+                "autofocus": True,
+                "minlength": 12,
+                "maxlength": 128,
+                "autocomplete": "new-password",
+                "pattern": server.PASSWORD_REGEX_STR,
+                "title": "Use at least 5 characters, including an uppercase letter, a lowercase letter, and a special character.",
+            },
+        ),
+        scoped=True,
+    )
+
+    contents = "\n".join(
+        (
+            password_field_block,
+            htmlgen.tag("br"),
+            htmlgen.tag("br"),
+            htmlgen.jinja_super_block(),
+            back_link,
+            submit_button,
+        ),
+    )
+
+    body = htmlgen.contain_in_box(
+        htmlgen.form(
+            "new_password_prompt",
+            contents,
+        ),
+    )
+
+    return template_admin_return_signout_footer(
+        body,
+        title="Change Password",
     )
 
 

@@ -28,7 +28,7 @@ __license__ = "GNU General Public License Version 3"
 import functools
 import socket
 import traceback
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 
 from quart.templating import stream_template
 from werkzeug.exceptions import HTTPException
@@ -39,11 +39,6 @@ if TYPE_CHECKING:
         Awaitable,
         Callable,
     )
-    from typing import ParamSpec
-
-    PS = ParamSpec("PS")
-
-T = TypeVar("T")
 
 
 async def send_error(

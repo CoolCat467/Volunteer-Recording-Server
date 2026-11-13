@@ -17,7 +17,9 @@
       </td>
     </tr>
     <tr>
-      <td></td>
+      <td>{% if is_admin %}
+      <button type="submit" name="change_password">Change Password</button>
+      {% endif %}</td>
       <td>
         {% if self_modification %}
         <p>

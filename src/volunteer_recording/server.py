@@ -26,6 +26,7 @@ __license__ = "GNU General Public License Version 3"
 
 import argparse
 import datetime as dt
+import re
 import tomllib
 import traceback
 from collections.abc import (
@@ -36,7 +37,7 @@ from collections.abc import (
 )
 from dataclasses import dataclass, field
 from enum import Enum
-from functools import partial
+from functools import partial, wraps
 from os import getenv
 from pathlib import Path
 from typing import (
@@ -49,7 +50,6 @@ from typing import (
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
-import orjson
 import platformdirs
 import trio
 from dotenv import load_dotenv
@@ -78,11 +78,10 @@ from volunteer_recording.server_utils import (
 )
 
 if TYPE_CHECKING:
-    from typing import ParamSpec
+    from collections.abc import Awaitable, Callable
 
     from werkzeug import Response as WerkzeugResponse
 
-    PS = ParamSpec("PS")
 
 FILE_TITLE: Final = __title__.lower().replace(" ", "-").replace("-", "_")
 CONFIG_PATH: Final = trio.Path(
@@ -101,6 +100,9 @@ PASSWORD_DATA: Final = DATA_PATH / "password.json"
 
 load_dotenv()
 PEPPER: Final = getenv("COOKIE_SECRET", "")
+
+PASSWORD_REGEX_STR: Final = r"(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9\s]).{5,}"  # noqa: S105
+PASSWORD_REGEX: Final = re.compile(PASSWORD_REGEX_STR)
 
 
 def datetime_now_tomorrow() -> dt.datetime:
@@ -212,10 +214,19 @@ def get_select_type_from_full_path(full_path: str) -> SelectUserType:
 
 @app.get(SelectUserType.CHECK_IN.value, endpoint="check_in_get")
 @app.get(SelectUserType.CHECK_OUT.value, endpoint="check_out_get")
-@app.get(SelectUserType.ADMIN_LOGIN.value, endpoint="admin_login_get")
 @pretty_exception
 async def phone_input_get() -> AsyncIterator[str]:
     """Render the phone input page."""
+    return await stream_template("phone_input.html.jinja")
+
+
+@app.get(SelectUserType.ADMIN_LOGIN.value)
+@pretty_exception
+async def admin_login_get() -> AsyncIterator[str]:
+    """Handle admin login GET request."""
+    # If user session is still valid, jump straight to admin page.
+    if get_user_id_from_session_or_none() is not None:
+        return app.redirect("/admin")
     return await stream_template("phone_input.html.jinja")
 
 
@@ -758,18 +769,6 @@ def perform_login_user(user_id: int) -> UUID:
     return uuid
 
 
-def get_user_id_from_session() -> int:
-    """Return user id from session. If not found, logout and raise Unauthorized."""
-    # assert current_user.is_authenticated
-    assert current_user.auth_id is not None
-    session_db = APP_DATA["session"]
-    session = session_db.find_session_uuid(UUID(current_user.auth_id))
-    if session is None:
-        logout_user()
-        raise Unauthorized()
-    return session.user_id
-
-
 @app.post(f"{SelectUserType.ADMIN_LOGIN.value}/user/<int:user_id>")
 @pretty_exception
 async def admin_login_user_post(
@@ -817,29 +816,59 @@ async def admin_login_user_post(
     return app.redirect("/admin")
 
 
+def get_user_id_from_session_or_none() -> int | None:
+    """Return user id from session. If not found, return None."""
+    if current_user.auth_id is None:
+        return None
+    session_db = APP_DATA["session"]
+    session = session_db.find_session_uuid(UUID(current_user.auth_id))
+    if session is None:
+        return None
+    return session.user_id
+
+
+def get_user_id_from_session() -> int:
+    """Return user id from session. If not found, logout and raise Unauthorized."""
+    # assert current_user.is_authenticated
+    user_id = get_user_id_from_session_or_none()
+    if user_id is None:
+        logout_user()
+        raise Unauthorized()
+    return user_id
+
+
 pretty_exception_ignore_unauthorized = pretty_exception_ignore_bases(
     (Unauthorized,),
 )
 
 
+def active_session_required[**PS, T](
+    function: Callable[PS, Awaitable[T]],
+) -> Callable[*PS, Awaitable[T | tuple[AsyncIterator[str], int]]]:
+    """Require session is valid decorator."""
+
+    @pretty_exception_ignore_unauthorized
+    @login_required
+    @wraps(function)
+    async def wrapper(*args: PS.args, **kwargs: PS.kwargs) -> T:
+        """Try to get user id from session wrapper."""
+        get_user_id_from_session()
+        return await function(*args, **kwargs)
+
+    return wrapper
+
+
 @app.get("/admin")
-@pretty_exception_ignore_unauthorized
-@login_required
+@active_session_required
 async def handle_admin_get() -> AsyncIterator[str]:
     """Handle administrator root GET request."""
-    ### Check that session is still valid
-    ##get_user_id_from_session()
     return await stream_template("admin_root.html.jinja")
 
 
 @app.get("/admin/signout")
-@pretty_exception_ignore_unauthorized
-@login_required
+@active_session_required
 async def handle_admin_signout_get() -> AsyncIterator[str]:
     """Handle administrator signout GET request."""
-    ### Check that session is still valid
-    ##get_user_id_from_session()
-
     logout_user()
 
     message = "Successfully signed out!"
@@ -852,8 +881,7 @@ async def handle_admin_signout_get() -> AsyncIterator[str]:
 
 
 @app.get("/admin/view-time-interval")
-@pretty_exception_ignore_unauthorized
-@login_required
+@active_session_required
 async def handle_admin_view_time_interval_get() -> tuple[
     AsyncIterator[str],
     int,
@@ -871,8 +899,7 @@ async def handle_admin_view_time_interval_get() -> tuple[
 
 
 @app.get("/admin/edit-entries")
-@pretty_exception_ignore_unauthorized
-@login_required
+@active_session_required
 async def handle_admin_edit_entries_get() -> tuple[AsyncIterator[str], int]:
     """Handle administrator edit entries GET request."""
     # Check that session is still valid
@@ -887,8 +914,7 @@ async def handle_admin_edit_entries_get() -> tuple[AsyncIterator[str], int]:
 
 
 @app.get("/admin/edit-categories")
-@pretty_exception_ignore_unauthorized
-@login_required
+@active_session_required
 async def handle_admin_edit_categories_get() -> tuple[AsyncIterator[str], int]:
     """Handle administrator edit categories GET request."""
     # Check that session is still valid
@@ -903,13 +929,9 @@ async def handle_admin_edit_categories_get() -> tuple[AsyncIterator[str], int]:
 
 
 @app.get("/admin/edit-user")
-@pretty_exception_ignore_unauthorized
-@login_required
+@active_session_required
 async def handle_admin_edit_user_get() -> AsyncIterator[str]:
     """Handle administrator user GET request."""
-    ### Check that session is still valid
-    ##get_user_id_from_session()
-
     user_db = APP_DATA["user"]
 
     return await stream_template(
@@ -919,8 +941,7 @@ async def handle_admin_edit_user_get() -> AsyncIterator[str]:
 
 
 @app.get("/admin/edit-user/<int:user_id>")
-@pretty_exception_ignore_unauthorized
-@login_required
+@active_session_required
 async def handle_admin_edit_user_view_user_get(
     user_id: int,
 ) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
@@ -950,21 +971,8 @@ async def handle_admin_edit_user_view_user_get(
         self_modification=self_modification,
         autofill_retired=user.retired,
         is_admin=user.is_admin,
+        user_id=user_id,
     )
-
-
-def admin_reset_password(user_id: int, password: str) -> None:
-    """Set the password for given user to given value."""
-    password_db = APP_DATA["password"]
-    password_db.set_password(user_id, password)
-
-
-def grant_admin_privileges(user_id: int, password: str) -> None:
-    """Grant admin privileges to given user and set their password."""
-    user_db = APP_DATA["user"]
-    user_db[user_id] = user_db[user_id].get_modified_copy(is_admin=True)
-
-    admin_reset_password(user_id, password)
 
 
 def modify_user(
@@ -1017,8 +1025,7 @@ administrator to set your retired flag on your behalf.""".splitlines(),
 
 
 @app.post("/admin/edit-user/<int:user_id>")
-@pretty_exception_ignore_unauthorized
-@login_required
+@active_session_required
 async def handle_admin_edit_user_post(
     user_id: int,
 ) -> tuple[AsyncIterator[str], int] | AsyncIterator[str] | WerkzeugResponse:
@@ -1046,6 +1053,7 @@ async def handle_admin_edit_user_post(
     code = form.get("code")
     retired = form.get("retired") is not None
     toggle_admin = form.get("toggle_admin") is not None
+    change_password = form.get("change_password") is not None
 
     errors = []
     if not firstname:
@@ -1147,7 +1155,7 @@ async def handle_admin_edit_user_post(
         is_admin=False if revoke_admin else user.is_admin,
     )
 
-    if grant_admin:
+    if grant_admin or change_password:
         return app.redirect(f"/admin/edit-user/{user_id}/change-password")
 
     return await stream_template(
@@ -1159,15 +1167,11 @@ async def handle_admin_edit_user_post(
 
 
 @app.get("/admin/edit-user/<int:user_id>/change-password")
-@pretty_exception_ignore_unauthorized
-@login_required
+@active_session_required
 async def handle_admin_edit_user_change_password_get(
     user_id: int,
 ) -> tuple[AsyncIterator[str], int] | dict[str, object]:
-    """Handle administrator edit user GET request."""
-    ### Check that session is still valid
-    ##logged_in_user_id = get_user_id_from_session()
-
+    """Handle administrator edit user change password GET request."""
     user = APP_DATA["user"].get(user_id)
 
     if user is None:
@@ -1178,8 +1182,85 @@ async def handle_admin_edit_user_change_password_get(
             return_link="/admin/edit-user",
         )
 
-    # TODO: Edit user template
-    return dict(orjson.loads(orjson.dumps(user)))
+    return await stream_template(
+        "prompt_new_password.html.jinja",
+        user_id=user_id,
+    )
+
+
+def admin_reset_password(user_id: int, password: str) -> None:
+    """Set the password for given user to given value."""
+    password_db = APP_DATA["password"]
+    password_db.set_password(user_id, password)
+
+
+def grant_admin_privileges(user_id: int, password: str) -> None:
+    """Grant admin privileges to given user and set their password."""
+    user_db = APP_DATA["user"]
+    user_db[user_id] = user_db[user_id].get_modified_copy(is_admin=True)
+
+    admin_reset_password(user_id, password)
+
+
+@app.post("/admin/edit-user/<int:user_id>/change-password")
+@active_session_required
+async def handle_admin_edit_user_change_password_post(
+    user_id: int,
+) -> tuple[AsyncIterator[str], int] | dict[str, object]:
+    """Handle administrator edit user change password POST request."""
+    user = APP_DATA["user"].get(user_id)
+
+    if user is None:
+        return await get_exception_page(
+            404,  # not found
+            "Not Found",
+            "User not found.",
+            return_link="/admin/edit-user",
+        )
+
+    multi_dict = await request.form
+    form = multi_dict.to_dict()
+
+    new_password = form.get("new_password")
+
+    errors = []
+    if not new_password:
+        errors.append("Missing <code>new_password</code> field.")
+    elif not isinstance(new_password, str):
+        errors.append("<code>new_password</code> field type must be a string.")
+    elif len(new_password) < 12:
+        errors.append(
+            "<code>new_password</code> field must be at least 12 characters long.",
+        )
+    elif len(new_password) > 128:
+        errors.append(
+            "<code>new_password</code> field must be at most 128 characters long.",
+        )
+    elif PASSWORD_REGEX.match(new_password) is None:
+        errors.append(
+            "<code>new_password</code> field does not match regular expression.",
+        )
+
+    source_page = request.full_path.removesuffix("?")
+
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=source_page,
+        )
+
+    assert isinstance(new_password, str)
+
+    grant_admin_privileges(user_id, new_password)
+
+    return await stream_template(
+        "success.html.jinja",
+        message="Changes to user saved successfully!",
+        return_text="Return to edit user panel",
+        return_link=f"/admin/edit-user/{user_id}",
+    )
 
 
 def ask_integer(prompt: str | None = None) -> int:
