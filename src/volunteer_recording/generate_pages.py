@@ -624,9 +624,14 @@ def generate_select_user_get() -> str:
     user_list_or_message = htmlgen.jinja_if_block(
         {
             "records_exist": user_list,
-            "": htmlgen.wrap_tag(
+            "show_create": htmlgen.wrap_tag(
                 "p",
                 "No users currently exist with this code. Press the button below to create one.",
+                block=False,
+            ),
+            "": htmlgen.wrap_tag(
+                "p",
+                "No users currently exist with this code.",
                 block=False,
             ),
         },
@@ -1205,11 +1210,11 @@ def generate_admin_edit_user_modify_user_get() -> str:
             "self_modification": htmlgen.wrap_tag(
                 "p",
                 " ".join(
-                    """Some options are not able to be changed for the
-currently logged in user for system integrity purposes.
-Have another administrator change them on your
-behalf.""".splitlines(),
+                    """Some options are forbidden from being changed for
+the currently logged in user for system integrity purposes. Have another
+administrator change them on your behalf.""".splitlines(),
                 ),
+                block=False,
             ),
         },
     )

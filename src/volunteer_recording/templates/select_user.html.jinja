@@ -21,8 +21,10 @@
       {% endfor %}
     </tbody>
   </table>
-  {% else %}
+  {% elif show_create %}
   <p>No users currently exist with this code. Press the button below to create one.</p>
+  {% else %}
+  <p>No users currently exist with this code.</p>
   {% endif %}
   <br>
   {{ super() -}}

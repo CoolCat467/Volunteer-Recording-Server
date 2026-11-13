@@ -2,9 +2,7 @@
 {% block title scoped %}Edit User{% endblock title %}
 {% block body scoped %}
 {% if self_modification %}
-<p>
-  Some options are not able to be changed for the currently logged in user for system integrity purposes. Have another administrator change them on your behalf.
-</p>
+<p>Some options are forbidden from being changed for the currently logged in user for system integrity purposes. Have another administrator change them on your behalf.</p>
 {% endif %}
 <form id="modify_user" name="modify_user" method="post">
   <table>
