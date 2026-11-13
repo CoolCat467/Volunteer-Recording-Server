@@ -3,24 +3,7 @@
 {% block body scoped %}
 <form id="select_user" name="select_user" method="post">
   {% if records_exist %}
-  <table class="user-table center">
-    <thead>
-      <tr>
-        {% for header_element in ('First Name', 'Last Name', 'Select') %}
-        <th>{{ header_element }}</th>
-        {% endfor %}
-      </tr>
-    </thead>
-    <tbody>
-      {% for user_id, user in user_records %}
-      <tr>
-        <td>{{ user.firstname|escape }}</td>
-        <td>{{ user.lastname|escape }}</td>
-        <td><button type="submit" name="user_id" value="{{ user_id }}">Select</button></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% include 'select_user_table.html.jinja' %}
   {% elif show_create %}
   <p>No users currently exist with the provided code. Press the button below to create one.</p>
   {% else %}

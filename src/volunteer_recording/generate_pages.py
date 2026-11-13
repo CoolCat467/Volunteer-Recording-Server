@@ -572,11 +572,9 @@ def generate_phone_input() -> str:
     )
 
 
-@save_template_as("select_user")
-def generate_select_user_get() -> str:
-    """Generate select user from list GET page."""
-    return_link = htmlgen.jinja_expression("return_link")
-
+@save_template_as("select_user_table")
+def generate_select_user_table() -> str:
+    """Generate select user table."""
     select_user_button = htmlgen.create_button(
         "Select",
         type_="submit",
@@ -584,7 +582,7 @@ def generate_select_user_get() -> str:
         value=htmlgen.jinja_expression("user_id"),
     )
 
-    user_list = htmlgen.jinja_table(
+    return htmlgen.jinja_table(
         None,
         ("First Name", "Last Name", "Select"),
         htmlgen.jinja_table_row(
@@ -607,9 +605,17 @@ def generate_select_user_get() -> str:
         class_="user-table center",
     )
 
+
+@save_template_as("select_user")
+def generate_select_user_get() -> str:
+    """Generate select user from list GET page."""
+    return_link = htmlgen.jinja_expression("return_link")
+
+    select_user_table = htmlgen.jinja_include("select_user_table.html.jinja")
+
     user_list_or_message = htmlgen.jinja_if_block(
         {
-            "records_exist": user_list,
+            "records_exist": select_user_table,
             "show_create": htmlgen.wrap_tag(
                 "p",
                 "No users currently exist with the provided code. Press the button below to create one.",
@@ -1107,6 +1113,34 @@ def admin_edit_entries_get() -> str:
     return template_admin_return_signout_footer(
         body,
         title="Administration Edit Entries Panel",
+    )
+
+
+@save_template_as("admin_edit_entries_select_user")
+def generate_admin_edit_entries_select_user_get() -> str:
+    """Generate admin edit entries select user from list GET page."""
+    select_user_table = htmlgen.jinja_include("select_user_table.html.jinja")
+
+    back_link = htmlgen.create_link(
+        "/admin/edit-entries",
+        "Return to edit entries panel",
+        class_="submit_button",
+    )
+
+    form_content = "\n".join(
+        (
+            select_user_table,
+            htmlgen.tag("br"),
+            htmlgen.jinja_super_block(),
+            back_link,
+        ),
+    )
+
+    html = htmlgen.form("select_user", form_content)
+
+    return template_admin_return_signout_footer(
+        html,
+        title="Select User to Create Entry For",
     )
 
 

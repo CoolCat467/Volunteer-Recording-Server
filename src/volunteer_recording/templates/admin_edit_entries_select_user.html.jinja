@@ -1,0 +1,12 @@
+{% extends "admin_return_signout.html.jinja" %}
+{% block title scoped %}Select User to Create Entry For{% endblock title %}
+{% block body scoped %}
+<form id="select_user" name="select_user" method="post">
+  {% include 'select_user_table.html.jinja' %}
+  <br>
+  {{ super() -}}
+  <a href="/admin/edit-entries" class="submit_button">Return to edit entries panel</a>
+</form>
+{% endblock body %}
+{% block return_text scoped %}Sign out{% endblock return_text %}
+{% block return_link scoped %}/admin/signout{% endblock return_link %}

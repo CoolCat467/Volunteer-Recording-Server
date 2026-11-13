@@ -976,20 +976,68 @@ async def handle_admin_edit_entries_checkouts_get() -> tuple[
 
 @app.get("/admin/edit-entries/new-entry/select-user")
 @active_session_required
-async def handle_admin_edit_entries_new_entry_select_user_get() -> tuple[
-    AsyncIterator[str],
-    int,
-]:
-    """Handle administrator edit checkout entries GET request."""
-    # Check that session is still valid
-    user_id = get_user_id_from_session()
+async def handle_admin_edit_entries_new_entry_select_user_get() -> (
+    AsyncIterator[str]
+):
+    """Handle administrator edit checkout new entry select user GET request."""
+    user_db = APP_DATA["user"]
 
-    return await get_exception_page(
-        404,  # not found
-        "Not Found",
-        f"You are logged in as {user_id = }<br><i>This page has not been implemented yet™</i>",
-        return_link="/admin/edit-entries",
+    return await stream_template(
+        "admin_edit_entries_select_user.html.jinja",
+        user_records=enumerate(user_db),
     )
+
+
+@app.post("/admin/edit-entries/new-entry/select-user")
+@active_session_required
+async def handle_admin_edit_entries_new_entry_select_user_post() -> (
+    tuple[AsyncIterator[str], int] | WerkzeugResponse
+):
+    """Handle administrator edit checkout new entry select user POST request."""
+    multi_dict = await request.form
+    form = multi_dict.to_dict()
+
+    user_id = form.get("user_id")
+
+    errors = []
+    if not isinstance(user_id, str):
+        errors.append("<code>user_id</code> field type must be a string.")
+    elif not user_id.isdecimal():
+        errors.append(
+            "<code>user_id</code> field value must be a decimal.",
+        )
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=request.full_path.removesuffix("?"),
+        )
+
+    assert user_id is not None
+    numeric_user_id = int(user_id)
+
+    return app.redirect(f"/admin/edit-entries/new-entry/{numeric_user_id}")
+
+
+@app.get("/admin/edit-entries/new-entry/<int:user_id>")
+@active_session_required
+async def handle_admin_edit_entries_new_entry_user_get(
+    user_id: int,
+) -> tuple[AsyncIterator[str], int] | str:
+    """Handle administrator edit entries new entry user GET request."""
+    user = APP_DATA["user"].get(user_id)
+
+    if user is None:
+        return await get_exception_page(
+            404,  # not found
+            "Not Found",
+            "User not found.",
+            return_link=SelectUserType.ADMIN_LOGIN.value,
+        )
+
+    # TODO: Implement create new entry user screen.
+    return repr(user)
 
 
 @app.get("/admin/edit-categories")
