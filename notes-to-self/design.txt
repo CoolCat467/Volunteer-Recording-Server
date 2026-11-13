@@ -127,7 +127,7 @@ Create user
 
 Administration login
 - /admin-login
-- /admin/user/<internal user id>/change-password
+- /admin/edit-user/<internal user id>/change-password
 ╭──────────────────────────────╮
 │ Please enter [your password] │ # [new password] if change_password
 │ ┌──────────────┐             │ # password criteria match if change_password
@@ -151,7 +151,7 @@ Administration root
 │ - View time interval data │ -> /admin/view-time-interval
 │ - Edit Entries            │ -> /admin/edit-entries
 │ - Edit Categories         │ -> /admin/edit-categories
-│ - Edit Users              │ -> /admin/edit-users
+│ - Edit Users              │ -> /admin/edit-user
 │ ┌──────────┐              │
 | | Sign out |              | -> /admin/signout
 │ └──────────┘              |
@@ -347,7 +347,7 @@ Admin edit category
 │ ┌─┐                       │
 │ └─┘                       │
 │ ┌──────────────┐          │ # "Save Changes" if existing else "Create category"
-| |[Save Changes]|          | -> /admin/user/<internal user id>
+| |[Save Changes]|          | -> /admin/edit-user/<internal user id>
 │ └──────────────┘          |
 │ ┌───────────────────────┐ │
 | | Return without saving | | -> /admin/edit-categories
@@ -359,12 +359,12 @@ Admin edit category
 
 
 Admin edit users
-- /admin/edit-users
+- /admin/edit-user
 ╭───────────────────────────────────────────────────────╮
 │ ┌───────────────────────────────────────────────────┐ │
 | | User list                                         │ │
 | ├──────────┬─────────┬─────────────┬───────┬────────┤ | # sort lastname alphebetical
-| |first name│last name│date of birth│retired│is admin| | -> /admin/user/<internal user id>
+| |first name│last name│date of birth│retired│is admin| | -> /admin/edit-user/<internal user id>
 | ├──────────┼─────────┼─────────────┼───────┼────────┤ |
 | ┆          ┆         ┆             ┆       ┆        ┆ |
 | ├──────────┼─────────┼─────────────┼───────┼────────┤ |
@@ -380,7 +380,7 @@ Admin edit users
 
 
 Admin edit user
-- /admin/user/<internal user id>
+- /admin/edit-user/<internal user id>
 Inherit from /create-user?
 ╭─────────────────────────────────────╮
 │ User information                    │
@@ -394,10 +394,10 @@ Inherit from /create-user?
 │ ┌─┐                                 │
 │ └─┘                                 │
 │ ┌──────────────┐                    │
-| | Save Changes |                    | -> /admin/user/<internal user id>
+| | Save Changes |                    | -> /admin/edit-user/<internal user id>
 │ └──────────────┘                    |
 │ ┌─────────────────────────────────┐ │ # Grant or Revoke admin privileges
-| | Save & [Grant admin privileges] | | -> /admin/user/<internal user id>[/change-password if not currently an admin]
+| | Save & [Grant admin privileges] | | -> /admin/edit-user/<internal user id>[/change-password if not currently an admin]
 │ └─────────────────────────────────┘ |
 │ ┌───────────────────────┐           │
 | | Return without saving |           | -> /admin

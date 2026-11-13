@@ -47,6 +47,7 @@ from typing import (
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
+import orjson
 import platformdirs
 import trio
 from dotenv import load_dotenv
@@ -800,11 +801,8 @@ pretty_exception_ignore_unauthorized = pretty_exception_ignore_bases(
 @login_required
 async def handle_admin_get() -> AsyncIterator[str]:
     """Handle administrator root GET request."""
-    user_id = get_user_id_from_session()
-    print(f"[handle_admin_get] {user_id = }")
-
-    # raise NotImplementedError(f"{current_user.auth_id = }")
-    # return app.redirect("/admin/signout")
+    ### Check that session is still valid
+    ##get_user_id_from_session()
     return await stream_template("admin_root.html.jinja")
 
 
@@ -813,6 +811,9 @@ async def handle_admin_get() -> AsyncIterator[str]:
 @login_required
 async def handle_admin_signout_get() -> AsyncIterator[str]:
     """Handle administrator signout GET request."""
+    ### Check that session is still valid
+    ##get_user_id_from_session()
+
     logout_user()
 
     message = "Successfully signed out!"
@@ -832,6 +833,7 @@ async def handle_admin_view_time_interval_get() -> tuple[
     int,
 ]:
     """Handle administrator view time interval GET request."""
+    # Check that session is still valid
     user_id = get_user_id_from_session()
 
     return await get_exception_page(
@@ -847,6 +849,7 @@ async def handle_admin_view_time_interval_get() -> tuple[
 @login_required
 async def handle_admin_edit_entries_get() -> tuple[AsyncIterator[str], int]:
     """Handle administrator edit entries GET request."""
+    # Check that session is still valid
     user_id = get_user_id_from_session()
 
     return await get_exception_page(
@@ -862,6 +865,7 @@ async def handle_admin_edit_entries_get() -> tuple[AsyncIterator[str], int]:
 @login_required
 async def handle_admin_edit_categories_get() -> tuple[AsyncIterator[str], int]:
     """Handle administrator edit categories GET request."""
+    # Check that session is still valid
     user_id = get_user_id_from_session()
 
     return await get_exception_page(
@@ -886,55 +890,41 @@ def grant_admin_privileges(user_id: int, password: str) -> None:
     admin_reset_password(user_id, password)
 
 
-@app.get("/admin/edit-users")
+@app.get("/admin/edit-user")
 @pretty_exception_ignore_unauthorized
 @login_required
-async def handle_admin_edit_users_get() -> tuple[AsyncIterator[str], int]:
+async def handle_admin_edit_users_get() -> AsyncIterator[str]:
     """Handle administrator users GET request."""
-    user_id = get_user_id_from_session()
+    ### Check that session is still valid
+    ##get_user_id_from_session()
 
-    return await get_exception_page(
-        404,  # not found
-        "Not Found",
-        f"You are logged in as {user_id = }<br><i>This page has not been implemented yet™</i>",
-        return_link="/admin",
+    user_db = APP_DATA["user"]
+
+    return await stream_template(
+        "admin_select_edit_user.html.jinja",
+        user_records=enumerate(user_db),
     )
 
 
-##@app.post("/")
-##@pretty_exception
-##async def root_post() -> str | tuple[AsyncIterator[str], int]:
-##    """Handle page POST."""
-##    multi_dict = await request.form
-##    form = multi_dict.to_dict()
-##
-##    character_card = form.get("character_card", "").strip()
-##    current_situation = form.get("current_situation", "").strip()
-##
-##    errors = []
-##    if not character_card:
-##        errors.append("Missing <code>character_card</code> parameter.")
-##    if not current_situation:
-##        errors.append("Missing <code>current_situation</code> parameter.")
-##    if errors:
-##        return await get_exception_page(
-##            400,  # bad request
-##            "Bad Request",
-##            "\n<br>\n".join(errors),
-##            request.url,
-##        )
-##
-##    return "Not Implemented kekw"
+@app.get("/admin/edit-user/<int:user_id>")
+@pretty_exception_ignore_unauthorized
+@login_required
+async def admin_edit_user_get(
+    user_id: int,
+) -> tuple[AsyncIterator[str], int] | dict[str, object]:
+    """Handle user selected GET request."""
+    user = APP_DATA["user"].get(user_id)
 
+    if user is None:
+        return await get_exception_page(
+            404,  # not found
+            "Not Found",
+            "User not found.",
+            return_link="/admin/edit-user",
+        )
 
-##@app.get("/character_response/<uuid:response_uuid>")
-##@pretty_exception
-##async def character_response_get(
-##    response_uuid: UUID,
-##) -> tuple[str, int]:
-##    """Character response page get handling."""
-##    # page expired
-##    return "Requested page is expired or invalid.", 410
+    # TODO: Edit user template
+    return dict(orjson.loads(orjson.dumps(user)))
 
 
 def ask_integer(prompt: str | None = None) -> int:
@@ -1069,10 +1059,12 @@ def run_server(
         app.config["QUART_AUTH_DURATION"] = 24 * 60 * 60  # 1 day
 
         # We want pretty html, no jank
-        app.jinja_options = {
-            "trim_blocks": True,
-            "lstrip_blocks": True,
-        }
+        app.jinja_options.update(
+            {
+                "trim_blocks": True,
+                "lstrip_blocks": True,
+            },
+        )
 
         app.add_url_rule("/<path:filename>", "static", app.send_static_file)
         app.secret_key = PEPPER

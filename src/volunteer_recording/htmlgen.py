@@ -478,9 +478,15 @@ def jinja_statement(value: str) -> str:
     return f"{{% {value} %}}"
 
 
-def jinja_expression(value: str) -> str:
+def jinja_expression(
+    value: str,
+    strip_whitespace_before: bool = False,
+    strip_whitespace_after: bool = False,
+) -> str:
     """Wrap value in jinja expression block."""
-    return f"{{{{ {value} }}}}"
+    before = "-" if strip_whitespace_before else ""
+    after = "-" if strip_whitespace_after else ""
+    return f"{{{{{before} {value} {after}}}}}"
 
 
 def jinja_comment(value: str) -> str:
@@ -733,7 +739,7 @@ def jinja_extends(template_filename: str | Iterable[str]) -> str:
 
 def jinja_super_block() -> str:
     """Return jinja super() expression."""
-    return jinja_expression("super()")
+    return jinja_expression("super()", strip_whitespace_after=True)
 
 
 def jinja_number_plural(
@@ -761,6 +767,7 @@ def jinja_table_row_elements(
     row_filter: str | None = None,
     row_else_content: str | None = None,
     is_header: bool = False,
+    **row_kwargs: TagArg,
 ) -> str:
     """Generate jinja table row for loop block.
 
@@ -776,10 +783,10 @@ def jinja_table_row_elements(
         jinja_for_loop(
             results=row_results,
             iterate=row_iterate,
-            content=wrap_tag(tag_type, row_content, block=False),
+            content=wrap_tag(tag_type, row_content, block=False, **row_kwargs),
             filter_=row_filter,
             else_content=(
-                wrap_tag(tag_type, row_else_content, block=False)
+                wrap_tag(tag_type, row_else_content, block=False, **row_kwargs)
                 if row_else_content
                 else None
             ),
@@ -792,6 +799,7 @@ def jinja_table_row(
     row_iterate: Iterable[str] | str,
     row_content: str,
     row_filter: str | None = None,
+    **row_kwargs: TagArg,
 ) -> str:
     """Generate jinja table row for loop block.
 
@@ -804,7 +812,7 @@ def jinja_table_row(
     return jinja_for_loop(
         results=row_results,
         iterate=row_iterate,
-        content=wrap_tag("tr", row_content),
+        content=wrap_tag("tr", row_content, block=True, **row_kwargs),
         filter_=row_filter,
     )
 
@@ -814,6 +822,7 @@ def jinja_table(
     header_iterate: Iterable[str] | None = None,
     body: str | None = None,
     footer_iterate: Iterable[str] | None = None,
+    **table_kwargs: TagArg,
 ) -> str:
     """Generate jinja table nested for loop blocks."""
     table_contents = []
@@ -845,7 +854,12 @@ def jinja_table(
                 ),
             ),
         )
-    return wrap_tag("table", "\n".join(table_contents))
+    return wrap_tag(
+        "table",
+        "\n".join(table_contents),
+        block=True,
+        **table_kwargs,
+    )
 
 
 def jinja_select_block(

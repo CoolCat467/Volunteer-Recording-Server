@@ -169,6 +169,39 @@ def generate_style_css() -> str:
                 min_width="min-content",
             ),
             htmlgen.css(
+                (
+                    "a.submit_button",
+                    "a.submit_button:link",
+                    "a.submit_button:visited",
+                    "a.submit_button:hover",
+                    "a.submit_button:active",
+                ),
+                text_decoration="none",
+                color="inherit",
+            ),
+            htmlgen.css(
+                ".user-table",
+                border_collapse="collapse",
+            ),
+            htmlgen.css(
+                (
+                    ".user-table th",
+                    ".user-table td",
+                ),
+                border=("1px", "solid", "black"),
+                padding="8px",
+                text_align="left",
+            ),
+            htmlgen.css(
+                ".user-table th",
+                background="#eee",
+            ),
+            htmlgen.css(
+                ".user-table .submit_button",
+                display="inline-block",
+                margin=0,
+            ),
+            htmlgen.css(
                 "@media (prefers-color-scheme: dark)",
                 htmlgen.css(
                     "body",
@@ -211,6 +244,11 @@ def generate_style_css() -> str:
                 htmlgen.css(
                     ("input:hover", "button:hover"),
                     background_color="#4a4a4a",
+                ),
+                htmlgen.css(
+                    ".user-table th",
+                    background="#333",
+                    color="#f5f5f5",
                 ),
             ),
         ),
@@ -495,12 +533,12 @@ def generate_select_user_get() -> str:
                 (
                     htmlgen.wrap_tag(
                         "td",
-                        htmlgen.jinja_expression("user.firstname"),
+                        htmlgen.jinja_expression("user.firstname|escape"),
                         block=False,
                     ),
                     htmlgen.wrap_tag(
                         "td",
-                        htmlgen.jinja_expression("user.lastname"),
+                        htmlgen.jinja_expression("user.lastname|escape"),
                         block=False,
                     ),
                     htmlgen.wrap_tag(
@@ -511,6 +549,7 @@ def generate_select_user_get() -> str:
                 ),
             ),
         ),
+        class_="user-table center",
     )
 
     ##hidden_digits_field = htmlgen.tag(
@@ -923,17 +962,19 @@ def template_admin_signout_footer(
 @save_template_as("admin_root")
 def admin_root_get() -> str:
     """Generate admin root GET page."""
-    body = htmlgen.contain_in_box(
+    link_list = htmlgen.contain_in_box(
         htmlgen.link_list(
             {
                 "/admin/view-time-interval": "View time interval data",
                 "/admin/edit-entries": "Edit Entries",
                 "/admin/edit-categories": "Edit Categories",
-                "/admin/edit-users": "Edit Users",
+                "/admin/edit-user": "Edit Users",
             },
         ),
         "Actions",
     )
+
+    body = f"{link_list}\n<br>"
 
     return template_admin_signout_footer(body, title="Administration Panel")
 
@@ -967,7 +1008,7 @@ def template_admin_return_signout_footer(
 ) -> str:
     """Use admin return signout footer HTML Template for application."""
     sections = [
-        htmlgen.jinja_extends("admin_signout.html.jinja"),
+        htmlgen.jinja_extends("admin_return_signout.html.jinja"),
     ]
 
     if title is not None:
@@ -986,6 +1027,101 @@ def template_admin_return_signout_footer(
     sections.append(htmlgen.jinja_block("body", body_content, scoped=True))
 
     return "\n".join(sections)
+
+
+def jinja_disabled_checkbox(value_expression: str) -> str:
+    """Return disabled checkbox with its checked state dependent on given expression."""
+    return htmlgen.jinja_arg_tag(
+        "input",
+        (
+            htmlgen.jinja_if_block(
+                {value_expression: 'checked="true" '},
+                block=False,
+            ),
+        ),
+        type_="checkbox",
+        disabled=True,
+    )
+
+
+@save_template_as("admin_select_edit_user")
+def generate_admin_edit_user_get() -> str:
+    """Generate admin select edit user from list GET page."""
+    user_id = htmlgen.jinja_expression("user_id")
+
+    select_user_button = htmlgen.wrap_tag(
+        "a",
+        "Edit",
+        block=False,
+        class_="submit_button",
+        href=f"/admin/edit-user/{user_id}",
+    )
+
+    user_table = htmlgen.jinja_table(
+        None,  # htmlgen.wrap_tag("h2", "User List", block=False),
+        (
+            "First Name",
+            "Last Name",
+            "Date of Birth",
+            "Code",
+            "Retired",
+            "Admin",
+            "Select",
+        ),
+        htmlgen.jinja_table_row(
+            ("user_id", "user"),
+            "user_records",
+            "\n".join(
+                (
+                    htmlgen.wrap_tag(
+                        "td",
+                        htmlgen.jinja_expression("user.firstname|escape"),
+                        block=False,
+                    ),
+                    htmlgen.wrap_tag(
+                        "td",
+                        htmlgen.jinja_expression("user.lastname|escape"),
+                        block=False,
+                    ),
+                    htmlgen.wrap_tag(
+                        "td",
+                        htmlgen.jinja_expression(
+                            "user.date_of_birth.isoformat()",
+                        ),
+                        block=False,
+                    ),
+                    htmlgen.wrap_tag(
+                        "td",
+                        htmlgen.jinja_expression('"%04d"|format(user.code)'),
+                        block=False,
+                    ),
+                    htmlgen.wrap_tag(
+                        "td",
+                        jinja_disabled_checkbox("user.retired"),
+                        block=False,
+                    ),
+                    htmlgen.wrap_tag(
+                        "td",
+                        jinja_disabled_checkbox("user.is_admin"),
+                        block=False,
+                    ),
+                    htmlgen.wrap_tag(
+                        "td",
+                        select_user_button,
+                        block=False,
+                    ),
+                ),
+            ),
+        ),
+        class_="user-table center",
+    )
+
+    html = f"{user_table}\n<br>"
+
+    return template_admin_return_signout_footer(
+        html,
+        title="Edit Users",
+    )
 
 
 def matches_disk_files(new_files: dict[Path, str]) -> bool:

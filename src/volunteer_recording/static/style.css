@@ -67,6 +67,25 @@ input[type="submit"], button[type="submit"], .submit_button {
   margin-right: 0.5rem;
   min-width: min-content;
 }
+a.submit_button, a.submit_button:link, a.submit_button:visited, a.submit_button:hover, a.submit_button:active {
+  text-decoration: none;
+  color: inherit;
+}
+.user-table {
+  border-collapse: collapse;
+}
+.user-table th, .user-table td {
+  border: 1px solid black;
+  padding: 8px;
+  text-align: left;
+}
+.user-table th {
+  background: #eee;
+}
+.user-table .submit_button {
+  display: inline-block;
+  margin: 0;
+}
 @media (prefers-color-scheme: dark) {
   body {
     background-color: #181818;
@@ -100,5 +119,9 @@ input[type="submit"], button[type="submit"], .submit_button {
   }
   input:hover, button:hover {
     background-color: #4a4a4a;
+  }
+  .user-table th {
+    background: #333;
+    color: #f5f5f5;
   }
 }

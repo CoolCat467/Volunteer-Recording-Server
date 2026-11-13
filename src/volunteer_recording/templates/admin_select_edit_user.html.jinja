@@ -1,0 +1,28 @@
+{% extends "admin_return_signout.html.jinja" %}
+{% block title scoped %}Edit Users{% endblock title %}
+{% block body scoped %}
+<table class="user-table center">
+  <thead>
+    <tr>
+      {% for header_element in ('First Name', 'Last Name', 'Date of Birth', 'Code', 'Retired', 'Admin', 'Select') %}
+      <th>{{ header_element }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for user_id, user in user_records %}
+    <tr>
+      <td>{{ user.firstname|escape }}</td>
+      <td>{{ user.lastname|escape }}</td>
+      <td>{{ user.date_of_birth.isoformat() }}</td>
+      <td>{{ "%04d"|format(user.code) }}</td>
+      <td><input {% if user.retired %}checked="true" {% endif %}type="checkbox" disabled="true"></td>
+      <td><input {% if user.is_admin %}checked="true" {% endif %}type="checkbox" disabled="true"></td>
+      <td><a class="submit_button" href="/admin/edit-user/{{ user_id }}">Edit</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<br>
+{{ super() -}}
+{% endblock body %}
