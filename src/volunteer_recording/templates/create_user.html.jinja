@@ -1,6 +1,6 @@
 {% extends "base.html.jinja" %}
-{% block title %}Create a new account{% endblock title %}
-{% block body %}
+{% block title scoped %}Create a new account{% endblock title %}
+{% block body scoped %}
 <form id="create_user" name="create_user" method="post">
   {% block input_fields scoped %}
   <table>

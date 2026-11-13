@@ -295,25 +295,29 @@ def base_template() -> str:
 
 
 def template(
-    title: str,
     body: str,
     *,
-    head: str = "",
+    title: str | None = None,
+    head: str | None = None,
     lang: str = "en",
 ) -> str:
     """Use base HTML Template for application."""
     sections = [
         htmlgen.jinja_extends("base.html.jinja"),
-        htmlgen.jinja_block("title", title, block=False),
     ]
 
-    if head:
-        sections.append(htmlgen.jinja_block("head", head))
+    if title is not None:
+        sections.append(
+            htmlgen.jinja_block("title", title, scoped=True, block=False),
+        )
+
+    if head is not None:
+        sections.append(htmlgen.jinja_block("head", head, scoped=True))
 
     if lang != "en":
-        sections.append(htmlgen.jinja_block("lang", lang))
+        sections.append(htmlgen.jinja_block("lang", lang, scoped=True))
 
-    sections.append(htmlgen.jinja_block("body", body))
+    sections.append(htmlgen.jinja_block("body", body, scoped=True))
 
     return "\n".join(sections)
 
@@ -344,8 +348,8 @@ def generate_error_page() -> str:
     )
     body = htmlgen.contain_in_box(content)
     return template(
-        htmlgen.jinja_expression("page_title"),
         body,
+        title=htmlgen.jinja_expression("page_title"),
     )
 
 
@@ -402,7 +406,7 @@ def generate_root() -> str:
         ),
     )
 
-    return template("Volunteer Recording", html, head=head)
+    return template(html, title="Volunteer Recording", head=head)
 
 
 @save_template_as("phone_input")
@@ -461,8 +465,8 @@ def generate_phone_input() -> str:
     )
 
     return template(
-        "Enter the last 4 digits of your phone number",
         html,
+        title="Enter the last 4 digits of your phone number",
         head=head,
     )
 
@@ -564,8 +568,8 @@ def generate_select_user_get() -> str:
     )
 
     return template(
-        f"Select your user{title_extra}",
         html,
+        title=f"Select your user{title_extra}",
     )
 
 
@@ -710,8 +714,8 @@ def generate_create_user_get() -> str:
     html = htmlgen.form("create_user", form_content)
 
     return template(
-        "Create a new account",
         html,
+        title="Create a new account",
     )
 
 
@@ -786,8 +790,8 @@ def generate_success_page() -> str:
     )
     body = htmlgen.contain_in_box(content)
     return template(
-        "Success",
         body,
+        title="Success",
         head=head,
     )
 
@@ -831,17 +835,23 @@ def generate_prompt_password_get() -> str:
         type_="submit",
     )
 
+    password_field_block = htmlgen.jinja_block(
+        "password_field",
+        htmlgen.input_field(
+            "password",
+            "Password",
+            field_type="password",
+            attrs={
+                "required": True,
+                "autofocus": True,
+            },
+        ),
+        scoped=True,
+    )
+
     contents = "\n".join(
         (
-            htmlgen.input_field(
-                "password",
-                "Password",
-                field_type="password",
-                attrs={
-                    "required": True,
-                    "autofocus": True,
-                },
-            ),
+            password_field_block,
             htmlgen.tag("br"),
             htmlgen.tag("br"),
             back_link,
@@ -861,9 +871,121 @@ def generate_prompt_password_get() -> str:
     )
 
     return template(
-        "Enter Password",
         body,
+        title="Enter Password",
     )
+
+
+@save_template_as("admin_signout")
+def admin_signout_page() -> str:
+    """Generate admin signout page."""
+    signout_button = htmlgen.wrap_tag(
+        "a",
+        "Sign out",
+        block=False,
+        class_="submit_button",
+        href="/admin/signout",
+    )
+
+    return template(signout_button)
+
+
+def template_admin_signout_footer(
+    body: str,
+    *,
+    title: str | None = None,
+    head: str | None = None,
+    lang: str = "en",
+) -> str:
+    """Use admin signout footer HTML Template for application."""
+    sections = [
+        htmlgen.jinja_extends("admin_signout.html.jinja"),
+    ]
+
+    if title is not None:
+        sections.append(
+            htmlgen.jinja_block("title", title, block=False, scoped=True),
+        )
+
+    if head is not None:
+        sections.append(htmlgen.jinja_block("head", head, scoped=True))
+
+    if lang != "en":
+        sections.append(htmlgen.jinja_block("lang", lang, scoped=True))
+
+    body_content = f"{body}\n{htmlgen.jinja_super_block()}"
+
+    sections.append(htmlgen.jinja_block("body", body_content, scoped=True))
+
+    return "\n".join(sections)
+
+
+@save_template_as("admin_root")
+def admin_root_get() -> str:
+    """Generate admin root GET page."""
+    body = htmlgen.contain_in_box(
+        htmlgen.link_list(
+            {
+                "/admin/view-time-interval": "View time interval data",
+                "/admin/edit-entries": "Edit Entries",
+                "/admin/edit-categories": "Edit Categories",
+                "/admin/edit-users": "Edit Users",
+            },
+        ),
+        "Actions",
+    )
+
+    return template_admin_signout_footer(body, title="Administration Panel")
+
+
+@save_template_as("admin_return_signout")
+def admin_return_signout_page() -> str:
+    """Generate admin return signout page."""
+    return_root = htmlgen.wrap_tag(
+        "a",
+        htmlgen.jinja_block(
+            "return_text",
+            "Return to admin panel",
+            scoped=True,
+            block=False,
+        ),
+        block=False,
+        class_="submit_button",
+        href="/admin",
+    )
+
+    return template_admin_signout_footer(return_root)
+
+
+def template_admin_return_signout_footer(
+    body: str,
+    *,
+    title: str | None = None,
+    head: str | None = None,
+    lang: str = "en",
+    return_text: str | None = None,
+) -> str:
+    """Use admin return signout footer HTML Template for application."""
+    sections = [
+        htmlgen.jinja_extends("admin_signout.html.jinja"),
+    ]
+
+    if title is not None:
+        sections.append(
+            htmlgen.jinja_block("title", title, block=False, scoped=True),
+        )
+
+    if head is not None:
+        sections.append(htmlgen.jinja_block("head", head, scoped=True))
+
+    if lang != "en":
+        sections.append(htmlgen.jinja_block("lang", lang, scoped=True))
+
+    body_content = f"{body}\n{htmlgen.jinja_super_block()}"
+
+    sections.append(htmlgen.jinja_block("body", body_content, scoped=True))
+
+    return "\n".join(sections)
 
 
 def matches_disk_files(new_files: dict[Path, str]) -> bool:

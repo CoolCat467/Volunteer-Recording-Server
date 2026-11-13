@@ -1,0 +1,15 @@
+{% extends "admin_signout.html.jinja" %}
+{% block title scoped %}Administration Panel{% endblock title %}
+{% block body scoped %}
+<div class="box">
+  <span>Actions</span>
+  <br>
+  <ul>
+    <li><a href="/admin/view-time-interval">View time interval data</a></li>
+    <li><a href="/admin/edit-entries">Edit Entries</a></li>
+    <li><a href="/admin/edit-categories">Edit Categories</a></li>
+    <li><a href="/admin/edit-users">Edit Users</a></li>
+  </ul>
+</div>
+{{ super() }}
+{% endblock body %}

@@ -62,7 +62,7 @@ Select user screen
 - /check-in/select-user
 - /check-out/select-user
 - /admin-login/select-user
-- /admin/edit-times/new-entry/select-user
+- /admin/edit-entries/new-entry/select-user
 ╭────────────────────────────────────────────╮
 │ Select your user [or create a new account] │ # or create if not manager signin
 │ ┌───────────────────────────┐              │
@@ -80,7 +80,7 @@ Select user screen
     volunteer check in -> /success
     volunteer check out -> /checkout-category
     manager sign in -> /admin-login
-    edit times new entry select user -> /admin/edit-times/create-entry
+    edit times new entry select user -> /admin/edit-entries/create-entry
 
 
 Volunteer check-in success
@@ -149,7 +149,7 @@ Administration root
 ╭───────────────────────────╮
 │ Actions                   │
 │ - View time interval data │ -> /admin/view-time-interval
-│ - Edit Entries            │ -> /admin/edit-times
+│ - Edit Entries            │ -> /admin/edit-entries
 │ - Edit Categories         │ -> /admin/edit-categories
 │ - Edit Users              │ -> /admin/edit-users
 │ ┌──────────┐              │
@@ -236,19 +236,19 @@ Accept url parameters for scripting? But would still need login cookie...
 
 
 Admin edit times
-- /admin/edit-times
+- /admin/edit-entries
 ╭───────────────────────────────╮
 │ Actions                       │
 │ ┌─────────────────────────┐   │ # only show if unresolved entries exist
-| | User forgot to check in |   | -> /admin/edit-times/checkins
+| | User forgot to check in |   | -> /admin/edit-entries/checkins
 │ └─────────────────────────┘   |
 │ - <value> entries to correct  │
 │ ┌──────────────────────────┐  │ # only show if unresolved entries exist
-| | User forgot to check out |  | -> /admin/edit-times/checkouts
+| | User forgot to check out |  | -> /admin/edit-entries/checkouts
 │ └──────────────────────────┘  |
 │ - <value> entries to correct  │
 │ ┌───────────────────────────┐ │
-| | Create entirely new entry | | -> /admin/edit-times/new-entry/select-user
+| | Create entirely new entry | | -> /admin/edit-entries/new-entry/select-user
 │ └───────────────────────────┘ |
 │ ┌────────┐                    │
 | | Return |                    | -> /admin
@@ -260,13 +260,13 @@ Admin edit times
 
 
 Admin edit check-in/check-out times
-- /admin/edit-times/checkins
-- /admin/edit-times/checkouts [reversed of in-place]
+- /admin/edit-entries/checkins
+- /admin/edit-entries/checkouts [reversed of in-place]
 ╭────────────────────────────────────────────╮
 │ ┌────────────────────────────────────────┐ │
 | | Entries with missing [check-in] stamps │ │
 | ├──────────┬─────────┬───────────────────┤ | # Sort by day oldest unresolved to newest
-| |first name│last name│[check-out] time   | | -> /admin/edit-times/resolve-entry
+| |first name│last name│[check-out] time   | | -> /admin/edit-entries/resolve-entry
 | ├──────────┼─────────┼───────────────────┤ |
 | ┆          ┆         ┆                   ┆ |
 | ├──────────┼─────────┼───────────────────┤ |
@@ -282,8 +282,8 @@ Admin edit check-in/check-out times
 
 
 Admin edit times fix/create entry
-- /admin/edit-times/resolve-entry
-- /admin/edit-times/create-entry
+- /admin/edit-entries/resolve-entry
+- /admin/edit-entries/create-entry
 ╭─────────────────────────────────────╮
 │ Entry information                   │
 │ First name      Last name           │
@@ -296,13 +296,13 @@ Admin edit times fix/create entry
 │ ┌──────────────┐┌──────────────┐    │ # read-only whichever of the two already exists unless automatic checkout
 │ └──────────────┘└──────────────┘    │
 │ ┌──────────────────────────┐        │ # "Create Entry" if not existing
-| | Update entry and resolve |        | -> /admin/edit-times/checkins or /admin/edit-times/checkouts or /admin/edit-times
+| | Update entry and resolve |        | -> /admin/edit-entries/checkins or /admin/edit-entries/checkouts or /admin/edit-entries
 │ └──────────────────────────┘        |
 │ ┌──────────────────────────┐        │ # "Return without creating" entry if not existing
-| | Return without resolving |        | -> /admin/edit-times/checkins or /admin/edit-times/checkouts or /admin/edit-times
+| | Return without resolving |        | -> /admin/edit-entries/checkins or /admin/edit-entries/checkouts or /admin/edit-entries
 │ └──────────────────────────┘        │
 │ ┌────────────────────────────────┐  │ # only if existing, red scary border
-| |<b>Permanently</b> delete entry |  | -> /admin/edit-times/checkins or /admin/edit-times/checkouts or /admin/edit-times
+| |<b>Permanently</b> delete entry |  | -> /admin/edit-entries/checkins or /admin/edit-entries/checkouts or /admin/edit-entries
 │ └────────────────────────────────┘  │
 │ ┌──────────┐                        │
 | | Sign out |                        | -> /admin/signout
@@ -325,6 +325,9 @@ Admin edit categories
 │ ┌─────────────────────┐ │
 | | Create new category │ │ -> /admin/new-category
 │ └─────────────────────┘ |
+│ ┌────────┐              │
+| | Return |              | -> /admin
+│ └────────┘              |
 │ ┌──────────┐            │
 | | Sign out |            | -> /admin/signout
 │ └──────────┘            |

@@ -96,44 +96,58 @@ def pretty_exception_name(exc: BaseException) -> str:
     return error
 
 
-def pretty_exception[**PS, T](
-    function: Callable[PS, Awaitable[T]],
-) -> Callable[PS, Awaitable[T | tuple[AsyncIterator[str], int]]]:
-    """Make exception pages pretty."""
+def pretty_exception_ignore_bases[**PS, T](
+    bases: tuple[type[BaseException], ...],
+) -> Callable[
+    [Callable[PS, Awaitable[T]]],
+    Callable[PS, Awaitable[T | tuple[AsyncIterator[str], int]]],
+]:
+    """Return pretty exception decorator that ignores logging given exception classes."""
 
-    @functools.wraps(function)
-    async def wrapper(
-        *args: PS.args,
-        **kwargs: PS.kwargs,
-    ) -> T | tuple[AsyncIterator[str], int]:
-        code = 500
-        name = "Exception"
-        desc = (
-            "The server encountered an internal error and "
-            + "was unable to complete your request. "
-            + "Either the server is overloaded or there is an error "
-            + "in the application."
-        )
-        try:
-            return await function(*args, **kwargs)
-        except Exception as exception:
-            traceback.print_exception(exception)
+    def pretty_exception(
+        function: Callable[PS, Awaitable[T]],
+    ) -> Callable[PS, Awaitable[T | tuple[AsyncIterator[str], int]]]:
+        """Make exception pages pretty."""
 
-            if isinstance(exception, HTTPException):
-                code = exception.code or code
-                desc = exception.description or desc
-                name = exception.name or name
-            else:
-                exc_name = pretty_exception_name(exception)
-                name = f"Internal Server Error ({exc_name})"
+        @functools.wraps(function)
+        async def wrapper(
+            *args: PS.args,
+            **kwargs: PS.kwargs,
+        ) -> T | tuple[AsyncIterator[str], int]:
+            code = 500
+            name = "Exception"
+            desc = (
+                "The server encountered an internal error and "
+                + "was unable to complete your request. "
+                + "Either the server is overloaded or there is an error "
+                + "in the application."
+            )
+            try:
+                return await function(*args, **kwargs)
+            except Exception as exception:
+                if not isinstance(exception, bases):
+                    traceback.print_exception(exception)
 
-        return await get_exception_page(
-            code,
-            name,
-            desc,
-        )
+                if isinstance(exception, HTTPException):
+                    code = exception.code or code
+                    desc = exception.description or desc
+                    name = exception.name or name
+                else:
+                    exc_name = pretty_exception_name(exception)
+                    name = f"Internal Server Error ({exc_name})"
 
-    return wrapper
+            return await get_exception_page(
+                code,
+                name,
+                desc,
+            )
+
+        return wrapper
+
+    return pretty_exception
+
+
+pretty_exception = pretty_exception_ignore_bases(())
 
 
 # Stolen from WOOF (Web Offer One File), Copyright (C) 2004-2009 Simon Budig,

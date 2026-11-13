@@ -1,6 +1,6 @@
 {% extends "base.html.jinja" %}
-{% block title %}Enter the last 4 digits of your phone number{% endblock title %}
-{% block head %}
+{% block title scoped %}Enter the last 4 digits of your phone number{% endblock title %}
+{% block head scoped %}
 <style>
   .giga_input, input[type="submit"] {
     width: 50vw;
@@ -14,7 +14,7 @@
   }
 </style>
 {% endblock head %}
-{% block body %}
+{% block body scoped %}
 <div class="center">
   <form id="phone_digits" name="phone_digits" method="post">
     <input id="digits" name="digits" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" minlength="4" min="0" max="9999" autocomplete="off" required="true" autofocus="true" class="giga_input">

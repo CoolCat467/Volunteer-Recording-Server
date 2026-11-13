@@ -1,8 +1,8 @@
 {% extends "base.html.jinja" %}
-{% block title %}Select your user{% if show_create %}
+{% block title scoped %}Select your user{% if show_create %}
  or create a new account
 {% endif %}{% endblock title %}
-{% block body %}
+{% block body scoped %}
 <form id="select_user" name="select_user" method="post">
   <table>
     <thead>

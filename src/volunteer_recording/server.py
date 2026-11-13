@@ -71,6 +71,7 @@ from volunteer_recording.server_utils import (
     find_ip,
     get_exception_page,
     pretty_exception,
+    pretty_exception_ignore_bases,
 )
 
 if TYPE_CHECKING:
@@ -732,7 +733,8 @@ def perform_login_user(user_id: int) -> UUID:
 
 def get_user_id_from_session() -> int:
     """Return user id from session. If not found, logout and raise Unauthorized."""
-    assert current_user.is_authenticated
+    # assert current_user.is_authenticated
+    assert current_user.auth_id is not None
     session_db = APP_DATA["session"]
     session = session_db.find_session_uuid(UUID(current_user.auth_id))
     if session is None:
@@ -788,14 +790,86 @@ async def admin_login_user_post(
     return app.redirect("/admin")
 
 
+pretty_exception_ignore_unauthorized = pretty_exception_ignore_bases(
+    (Unauthorized,),
+)
+
+
 @app.get("/admin")
-@pretty_exception
+@pretty_exception_ignore_unauthorized
 @login_required
 async def handle_admin_get() -> AsyncIterator[str]:
     """Handle administrator root GET request."""
-    print(f"{current_user.auth_id = }")
+    user_id = get_user_id_from_session()
+    print(f"[handle_admin_get] {user_id = }")
+
+    # raise NotImplementedError(f"{current_user.auth_id = }")
+    # return app.redirect("/admin/signout")
+    return await stream_template("admin_root.html.jinja")
+
+
+@app.get("/admin/signout")
+@pretty_exception_ignore_unauthorized
+@login_required
+async def handle_admin_signout_get() -> AsyncIterator[str]:
+    """Handle administrator signout GET request."""
     logout_user()
-    raise NotImplementedError(f"{current_user.auth_id = }")
+
+    message = "Successfully signed out!"
+
+    return await stream_template(
+        "success.html.jinja",
+        message=message,
+        # refreshes_after=10,
+    )
+
+
+@app.get("/admin/view-time-interval")
+@pretty_exception_ignore_unauthorized
+@login_required
+async def handle_admin_view_time_interval_get() -> tuple[
+    AsyncIterator[str],
+    int,
+]:
+    """Handle administrator view time interval GET request."""
+    user_id = get_user_id_from_session()
+
+    return await get_exception_page(
+        404,  # not found
+        "Not Found",
+        f"You are logged in as {user_id = }<br><i>This page has not been implemented yet™</i>",
+        return_link="/admin",
+    )
+
+
+@app.get("/admin/edit-entries")
+@pretty_exception_ignore_unauthorized
+@login_required
+async def handle_admin_edit_entries_get() -> tuple[AsyncIterator[str], int]:
+    """Handle administrator edit entries GET request."""
+    user_id = get_user_id_from_session()
+
+    return await get_exception_page(
+        404,  # not found
+        "Not Found",
+        f"You are logged in as {user_id = }<br><i>This page has not been implemented yet™</i>",
+        return_link="/admin",
+    )
+
+
+@app.get("/admin/edit-categories")
+@pretty_exception_ignore_unauthorized
+@login_required
+async def handle_admin_edit_categories_get() -> tuple[AsyncIterator[str], int]:
+    """Handle administrator edit categories GET request."""
+    user_id = get_user_id_from_session()
+
+    return await get_exception_page(
+        404,  # not found
+        "Not Found",
+        f"You are logged in as {user_id = }<br><i>This page has not been implemented yet™</i>",
+        return_link="/admin",
+    )
 
 
 def admin_reset_password(user_id: int, password: str) -> None:
@@ -810,6 +884,21 @@ def grant_admin_privileges(user_id: int, password: str) -> None:
     user_db[user_id] = user_db[user_id].get_modified_copy(is_admin=True)
 
     admin_reset_password(user_id, password)
+
+
+@app.get("/admin/edit-users")
+@pretty_exception_ignore_unauthorized
+@login_required
+async def handle_admin_edit_users_get() -> tuple[AsyncIterator[str], int]:
+    """Handle administrator users GET request."""
+    user_id = get_user_id_from_session()
+
+    return await get_exception_page(
+        404,  # not found
+        "Not Found",
+        f"You are logged in as {user_id = }<br><i>This page has not been implemented yet™</i>",
+        return_link="/admin",
+    )
 
 
 ##@app.post("/")

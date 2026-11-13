@@ -1,0 +1,5 @@
+{% extends "admin_signout.html.jinja" %}
+{% block body scoped %}
+<a class="submit_button" href="/admin">{% block return_text scoped %}Return to admin panel{% endblock return_text %}</a>
+{{ super() }}
+{% endblock body %}

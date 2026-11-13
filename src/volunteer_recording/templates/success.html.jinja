@@ -1,6 +1,6 @@
 {% extends "base.html.jinja" %}
-{% block title %}Success{% endblock title %}
-{% block head %}
+{% block title scoped %}Success{% endblock title %}
+{% block head scoped %}
 <meta http-equiv="refresh" content="{{ refreshes_after|default(10) }};url=/">
 <style>
   .success_check {
@@ -15,7 +15,7 @@
   }
 </style>
 {% endblock head %}
-{% block body %}
+{% block body scoped %}
 <div class="box">
   <p>{{ message }}</p>
   <span class="success_check center" aria-label="Success">✓</span>
