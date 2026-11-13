@@ -322,9 +322,25 @@ def bullet_list(values: Iterable[str], **kwargs: TagArg) -> str:
     return wrap_tag("ul", display, block=True, **kwargs)
 
 
-def create_link(reference: str, display: str) -> str:
+def create_link(
+    reference: str,
+    display: str,
+    /,
+    block: bool = False,
+    **kwargs: TagArg,
+) -> str:
     """Create link to reference."""
-    return wrap_tag("a", display, False, href=reference)
+    return wrap_tag("a", display, block=block, href=reference, **kwargs)
+
+
+def create_button(
+    display: str,
+    /,
+    block: bool = False,
+    **kwargs: TagArg,
+) -> str:
+    """Create button."""
+    return wrap_tag("button", display, block=block, **kwargs)
 
 
 def link_list(links: dict[str, str], **kwargs: TagArg) -> str:
@@ -430,7 +446,7 @@ def table_cell(
     value: str,
     /,
     is_header: bool = False,
-    block: bool = True,
+    block: bool = False,
     **kwargs: TagArg,
 ) -> str:
     """Wrap value in table cell tag."""

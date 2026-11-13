@@ -852,7 +852,7 @@ def active_session_required[**PS, T](
     @wraps(function)
     async def wrapper(*args: PS.args, **kwargs: PS.kwargs) -> T:
         """Try to get user id from session wrapper."""
-        get_user_id_from_session()
+        ##        get_user_id_from_session()
         return await function(*args, **kwargs)
 
     return wrapper
@@ -900,16 +900,11 @@ async def handle_admin_view_time_interval_get() -> tuple[
 
 @app.get("/admin/edit-entries")
 @active_session_required
+@pretty_exception
 async def handle_admin_edit_entries_get() -> tuple[AsyncIterator[str], int]:
     """Handle administrator edit entries GET request."""
-    # Check that session is still valid
-    user_id = get_user_id_from_session()
-
-    return await get_exception_page(
-        404,  # not found
-        "Not Found",
-        f"You are logged in as {user_id = }<br><i>This page has not been implemented yet™</i>",
-        return_link="/admin",
+    return await stream_template(
+        "admin_edit_entries.html.jinja",
     )
 
 

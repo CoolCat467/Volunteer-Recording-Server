@@ -1,0 +1,35 @@
+{% extends "admin_return_signout.html.jinja" %}
+{% block title scoped %}Administration Edit Entries Panel{% endblock title %}
+{% block body scoped %}
+<div class="box">
+  <span>Actions</span>
+  <br>
+  <ul>
+    {% if unresolved_checkins %}
+    <li>
+      <a href="/admin/edit-entries/checkins" class="submit_button">User forgot to check in</a>
+      <br>
+      <p>
+        {{ unresolved_checkins }} entries to correct
+      </p>
+    </li>
+    {% endif %}
+    {% if unresolved_checkouts %}
+    <li>
+      <a href="/admin/edit-entries/checkouts" class="submit_button">User forgot to checkout</a>
+      <br>
+      <p>
+        {{ unresolved_checkouts }} entries to correct
+      </p>
+    </li>
+    {% endif %}
+    <li>
+      <a href="/admin/edit-entries/new-entry/select-user" class="submit_button">Create entirely new entry</a>
+    </li>
+  </ul>
+</div>
+<br>
+{{ super() -}}
+{% endblock body %}
+{% block return_text scoped %}Sign out{% endblock return_text %}
+{% block return_link scoped %}/admin/signout{% endblock return_link %}

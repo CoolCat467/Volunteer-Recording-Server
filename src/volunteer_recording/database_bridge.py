@@ -262,11 +262,8 @@ class Calendar:
     ) -> None:
         """Add timestamp of given type for given date and time."""
         day = self.days.setdefault(date, [])
-        second = time.second
-        if time.microsecond > 500:
-            second += 1
         day.append(
-            Timestamp(type_, time.replace(second=second, microsecond=0)),
+            Timestamp(type_, time.replace(microsecond=0)),
         )
 
     def add_timestamp(

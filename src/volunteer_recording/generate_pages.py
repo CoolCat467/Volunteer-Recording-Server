@@ -420,19 +420,15 @@ def generate_root() -> str:
         (
             htmlgen.create_link(
                 "/check-in",
-                htmlgen.wrap_tag(
-                    "button",
+                htmlgen.create_button(
                     "Check-in",
-                    block=False,
                     class_="giga_button submit_button",
                 ),
             ),
             htmlgen.create_link(
                 "/check-out",
-                htmlgen.wrap_tag(
-                    "button",
+                htmlgen.create_button(
                     "Check-out",
-                    block=False,
                     class_="giga_button submit_button center",
                 ),
             ),
@@ -453,22 +449,20 @@ def generate_root() -> str:
 @save_template_as("return_footer")
 def return_footer_page() -> str:
     """Generate return footer page."""
-    return_button = htmlgen.wrap_tag(
-        "a",
+    return_button = htmlgen.create_link(
+        htmlgen.jinja_block(
+            "return_link",
+            "/",
+            scoped=True,
+            block=False,
+        ),
         htmlgen.jinja_block(
             "return_text",
             "Return to main page",
             scoped=True,
             block=False,
         ),
-        block=False,
         class_="submit_button",
-        href=htmlgen.jinja_block(
-            "return_link",
-            "/",
-            scoped=True,
-            block=False,
-        ),
     )
 
     return template(return_button)
@@ -583,10 +577,8 @@ def generate_select_user_get() -> str:
     """Generate select user from list GET page."""
     return_link = htmlgen.jinja_expression("return_link")
 
-    select_user_button = htmlgen.wrap_tag(
-        "button",
+    select_user_button = htmlgen.create_button(
         "Select",
-        block=False,
         type_="submit",
         name="user_id",
         value=htmlgen.jinja_expression("user_id"),
@@ -600,20 +592,14 @@ def generate_select_user_get() -> str:
             "user_records",
             "\n".join(
                 (
-                    htmlgen.wrap_tag(
-                        "td",
+                    htmlgen.table_cell(
                         htmlgen.jinja_expression("user.firstname|escape"),
-                        block=False,
                     ),
-                    htmlgen.wrap_tag(
-                        "td",
+                    htmlgen.table_cell(
                         htmlgen.jinja_expression("user.lastname|escape"),
-                        block=False,
                     ),
-                    htmlgen.wrap_tag(
-                        "td",
+                    htmlgen.table_cell(
                         select_user_button,
-                        block=False,
                     ),
                 ),
             ),
@@ -637,18 +623,14 @@ def generate_select_user_get() -> str:
         },
     )
 
-    back_link = htmlgen.wrap_tag(
-        "a",
+    back_link = htmlgen.create_link(
+        return_link,
         "Enter a different code",
-        block=False,
         class_="submit_button",
-        href=return_link,
     )
 
-    create_new_user_button = htmlgen.wrap_tag(
-        "button",
+    create_new_user_button = htmlgen.create_button(
         "Create new user",
-        block=False,
         type_="submit",
         name="create_user",
     )
@@ -765,18 +747,14 @@ def generate_create_user_get() -> str:
     """Generate select user from list GET page."""
     return_link = htmlgen.jinja_expression("return_link")
 
-    back_link = htmlgen.wrap_tag(
-        "a",
+    back_link = htmlgen.create_link(
+        return_link,
         "Back to select user",
-        block=False,
         class_="submit_button",
-        href=return_link,
     )
 
-    submit_button = htmlgen.wrap_tag(
-        "button",
+    submit_button = htmlgen.create_button(
         "Create User",
-        block=False,
         type_="submit",
     )
 
@@ -892,18 +870,14 @@ def generate_prompt_password_get() -> str:
         },
     )
 
-    back_link = htmlgen.wrap_tag(
-        "a",
+    back_link = htmlgen.create_link(
+        "/admin-login",
         "Back to select user",
-        block=False,
         class_="submit_button",
-        href="/admin-login",
     )
 
-    submit_button = htmlgen.wrap_tag(
-        "button",
+    submit_button = htmlgen.create_button(
         "Submit",
-        block=False,
         type_="submit",
     )
 
@@ -999,17 +973,15 @@ def admin_root_get() -> str:
 @save_template_as("admin_return_signout")
 def admin_return_signout_page() -> str:
     """Generate admin return signout page."""
-    return_root = htmlgen.wrap_tag(
-        "a",
+    return_root = htmlgen.create_link(
+        "/admin",
         htmlgen.jinja_block(
             "return_admin_panel_text",
             "Return to admin panel",
             scoped=True,
             block=False,
         ),
-        block=False,
         class_="submit_button",
-        href="/admin",
     )
 
     body = f"{htmlgen.jinja_super_block()}\n{return_root}"
@@ -1054,17 +1026,99 @@ def template_admin_return_signout_footer(
     return "\n".join(sections)
 
 
+@save_template_as("admin_edit_entries")
+def admin_edit_entries_get() -> str:
+    """Generate admin edit entries GET page."""
+    unresolved_checkins = htmlgen.jinja_expression("unresolved_checkins")
+    correct_check_ins = htmlgen.jinja_if_block(
+        {
+            "unresolved_checkins": htmlgen.wrap_tag(
+                "li",
+                "\n".join(
+                    (
+                        htmlgen.create_link(
+                            "/admin/edit-entries/checkins",
+                            "User forgot to check in",
+                            class_="submit_button",
+                        ),
+                        htmlgen.tag("br"),
+                        htmlgen.wrap_tag(
+                            "p",
+                            f"{unresolved_checkins} entries to correct",
+                        ),
+                    ),
+                ),
+            ),
+        },
+    )
+    unresolved_checkouts = htmlgen.jinja_expression("unresolved_checkouts")
+    correct_checkouts = htmlgen.jinja_if_block(
+        {
+            "unresolved_checkouts": htmlgen.wrap_tag(
+                "li",
+                "\n".join(
+                    (
+                        htmlgen.create_link(
+                            "/admin/edit-entries/checkouts",
+                            "User forgot to checkout",
+                            class_="submit_button",
+                        ),
+                        htmlgen.tag("br"),
+                        htmlgen.wrap_tag(
+                            "p",
+                            f"{unresolved_checkouts} entries to correct",
+                        ),
+                    ),
+                ),
+            ),
+        },
+    )
+    create_new_entry = htmlgen.wrap_tag(
+        "li",
+        htmlgen.create_link(
+            "/admin/edit-entries/new-entry/select-user",
+            "Create entirely new entry",
+            class_="submit_button",
+        ),
+    )
+
+    link_list = htmlgen.contain_in_box(
+        htmlgen.wrap_tag(
+            "ul",
+            "\n".join(  # noqa: FLY002
+                (
+                    correct_check_ins,
+                    correct_checkouts,
+                    create_new_entry,
+                ),
+            ),
+        ),
+        "Actions",
+    )
+
+    body = "\n".join(
+        (
+            link_list,
+            htmlgen.tag("br"),
+            htmlgen.jinja_super_block(),
+        ),
+    )
+
+    return template_admin_return_signout_footer(
+        body,
+        title="Administration Edit Entries Panel",
+    )
+
+
 @save_template_as("admin_select_edit_user")
 def generate_admin_edit_user_get() -> str:
     """Generate admin select edit user from list GET page."""
     user_id = htmlgen.jinja_expression("user_id")
 
-    select_user_button = htmlgen.wrap_tag(
-        "a",
+    select_user_button = htmlgen.create_link(
+        f"/admin/edit-user/{user_id}",
         "Edit",
-        block=False,
         class_="submit_button",
-        href=f"/admin/edit-user/{user_id}",
     )
 
     user_table = htmlgen.jinja_table(
@@ -1083,48 +1137,34 @@ def generate_admin_edit_user_get() -> str:
             "user_records",
             "\n".join(
                 (
-                    htmlgen.wrap_tag(
-                        "td",
+                    htmlgen.table_cell(
                         htmlgen.jinja_expression("user.firstname|escape"),
-                        block=False,
                     ),
-                    htmlgen.wrap_tag(
-                        "td",
+                    htmlgen.table_cell(
                         htmlgen.jinja_expression("user.lastname|escape"),
-                        block=False,
                     ),
-                    htmlgen.wrap_tag(
-                        "td",
+                    htmlgen.table_cell(
                         htmlgen.jinja_expression(
                             "user.date_of_birth.isoformat()",
                         ),
-                        block=False,
                     ),
-                    htmlgen.wrap_tag(
-                        "td",
+                    htmlgen.table_cell(
                         htmlgen.jinja_expression('"%04d"|format(user.code)'),
-                        block=False,
                     ),
-                    htmlgen.wrap_tag(
-                        "td",
+                    htmlgen.table_cell(
                         htmlgen.jinja_checkbox(
                             "user.retired",
                             disabled=True,
                         ),
-                        block=False,
                     ),
-                    htmlgen.wrap_tag(
-                        "td",
+                    htmlgen.table_cell(
                         htmlgen.jinja_checkbox(
                             "user.is_admin",
                             disabled=True,
                         ),
-                        block=False,
                     ),
-                    htmlgen.wrap_tag(
-                        "td",
+                    htmlgen.table_cell(
                         select_user_button,
-                        block=False,
                     ),
                 ),
             ),
@@ -1187,10 +1227,8 @@ def generate_admin_edit_user_modify_user_get() -> str:
 
     change_password_button = htmlgen.jinja_if_block(
         {
-            "is_admin": htmlgen.wrap_tag(
-                "button",
+            "is_admin": htmlgen.create_button(
                 "Change Password",
-                block=False,
                 type_="submit",
                 name="change_password",
             ),
@@ -1203,17 +1241,13 @@ def generate_admin_edit_user_modify_user_get() -> str:
                 "p",
                 "Changing your own privileges is forbidden.",
             ),
-            "is_admin": htmlgen.wrap_tag(
-                "button",
+            "is_admin": htmlgen.create_button(
                 "Revoke Administrator Privileges",
-                block=False,
                 type_="submit",
                 name="toggle_admin",
             ),
-            "": htmlgen.wrap_tag(
-                "button",
+            "": htmlgen.create_button(
                 "Grant Administrator Privileges",
-                block=False,
                 type_="submit",
                 name="toggle_admin",
                 style="".join(
@@ -1230,8 +1264,8 @@ def generate_admin_edit_user_modify_user_get() -> str:
     row2 = htmlgen.table_row(
         "\n".join(
             (
-                htmlgen.table_cell(change_password_button, block=False),
-                htmlgen.table_cell(toggle_admin_button),
+                htmlgen.table_cell(change_password_button),
+                htmlgen.table_cell(toggle_admin_button, block=True),
             ),
         ),
     )
@@ -1249,18 +1283,14 @@ def generate_admin_edit_user_modify_user_get() -> str:
 
     return_link = htmlgen.jinja_expression("return_link")
 
-    back_link = htmlgen.wrap_tag(
-        "a",
+    back_link = htmlgen.create_link(
+        return_link,
         "Return to user list without saving",
-        block=False,
         class_="submit_button",
-        href=return_link,
     )
 
-    submit_button = htmlgen.wrap_tag(
-        "button",
+    submit_button = htmlgen.create_button(
         "Save Changes",
-        block=False,
         type_="submit",
     )
 
@@ -1308,12 +1338,10 @@ def generate_admin_edit_user_new_password_get() -> str:
     """Generate prompt new password page."""
     user_id = htmlgen.jinja_expression("user_id")
 
-    back_link = htmlgen.wrap_tag(
-        "a",
+    back_link = htmlgen.create_link(
+        f"/admin/edit-user/{user_id}",
         "Back to edit user without saving",
-        block=False,
         class_="submit_button",
-        href=f"/admin/edit-user/{user_id}",
     )
 
     submit_button = htmlgen.wrap_tag(

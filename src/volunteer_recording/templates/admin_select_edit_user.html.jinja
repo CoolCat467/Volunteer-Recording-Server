@@ -18,7 +18,7 @@
       <td>{{ "%04d"|format(user.code) }}</td>
       <td><input {% if user.retired %}checked="true" {% endif %}type="checkbox" disabled="true"></td>
       <td><input {% if user.is_admin %}checked="true" {% endif %}type="checkbox" disabled="true"></td>
-      <td><a class="submit_button" href="/admin/edit-user/{{ user_id }}">Edit</a></td>
+      <td><a href="/admin/edit-user/{{ user_id }}" class="submit_button">Edit</a></td>
     </tr>
     {% endfor %}
   </tbody>
