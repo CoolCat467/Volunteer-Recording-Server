@@ -513,6 +513,14 @@ def parse_iso_date(string: str) -> dt.date | None:
         return None
 
 
+def parse_iso_time(string: str) -> dt.time | None:
+    """Return time object from string or None on error."""
+    try:
+        return dt.time.fromisoformat(string)
+    except ValueError:
+        return None
+
+
 def create_new_user(
     firstname: str,
     lastname: str,
@@ -1017,15 +1025,53 @@ async def handle_admin_edit_entries_new_entry_select_user_post() -> (
     assert user_id is not None
     numeric_user_id = int(user_id)
 
-    return app.redirect(f"/admin/edit-entries/new-entry/{numeric_user_id}")
+    return app.redirect(f"/admin/edit-entries/create-entry/{numeric_user_id}")
 
 
-@app.get("/admin/edit-entries/new-entry/<int:user_id>")
+@app.get("/admin/edit-entries/create-entry/<int:user_id>")
 @active_session_required
 async def handle_admin_edit_entries_new_entry_user_get(
     user_id: int,
-) -> tuple[AsyncIterator[str], int] | str:
+) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
     """Handle administrator edit entries new entry user GET request."""
+    user = APP_DATA["user"].get(user_id)
+
+    return_link = "/admin/edit-entries/new-entry/select-user"
+
+    if user is None:
+        return await get_exception_page(
+            404,  # not found
+            "Not Found",
+            "User not found.",
+            return_link=return_link,
+        )
+
+    now = dt.datetime.now()
+    today = now.date()
+    time_now = now.time().replace(second=0, microsecond=0)
+
+    return await stream_template(
+        "admin_configure_entry.html.jinja",
+        creating=True,
+        firstname=user.firstname,
+        lastname=user.lastname,
+        # date=today,
+        # date_min=date_min,
+        date_max=today,
+        # start_time_disabled=True,
+        # start_time=start_time,
+        # end_time_disabled=True,
+        end_time=time_now,
+        return_link=return_link,
+    )
+
+
+@app.post("/admin/edit-entries/create-entry/<int:user_id>")
+@active_session_required
+async def handle_admin_edit_entries_new_entry_user_post(
+    user_id: int,
+) -> tuple[AsyncIterator[str], int] | dict[str, object]:
+    """Handle administrator edit entries new entry user POST request."""
     user = APP_DATA["user"].get(user_id)
 
     if user is None:
@@ -1033,11 +1079,74 @@ async def handle_admin_edit_entries_new_entry_user_get(
             404,  # not found
             "Not Found",
             "User not found.",
-            return_link=SelectUserType.ADMIN_LOGIN.value,
+            return_link="/admin/edit-entries/new-entry/select-user",
         )
 
-    # TODO: Implement create new entry user screen.
-    return repr(user)
+    multi_dict = await request.form
+    form = multi_dict.to_dict()
+
+    date = form.get("date")
+    start_time = form.get("start_time")
+    end_time = form.get("end_time")
+    # permanently_delete = form.get("permanently_delete") is not None
+
+    errors = []
+    if not date:
+        errors.append("Missing <code>date</code> field.")
+    elif not isinstance(date, str):
+        errors.append(
+            "<code>date</code> field type must be a string.",
+        )
+    elif parse_iso_date(date) is None:
+        errors.append(
+            "<code>date</code> field type must be an ISO date.",
+        )
+
+    if not start_time:
+        errors.append("Missing <code>start_time</code> field.")
+    elif not isinstance(start_time, str):
+        errors.append(
+            "<code>start_time</code> field type must be a string.",
+        )
+    elif parse_iso_time(start_time) is None:
+        errors.append(
+            "<code>start_time</code> field type must be an ISO time.",
+        )
+
+    if not end_time:
+        errors.append("Missing <code>end_time</code> field.")
+    elif not isinstance(end_time, str):
+        errors.append(
+            "<code>end_time</code> field type must be a string.",
+        )
+    elif parse_iso_time(end_time) is None:
+        errors.append(
+            "<code>end_time</code> field type must be an ISO time.",
+        )
+
+    source_page = request.full_path.removesuffix("?")
+
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=source_page,
+        )
+
+    assert isinstance(date, str)
+    assert isinstance(start_time, str)
+    assert isinstance(end_time, str)
+
+    parsed_date = dt.date.fromisoformat(date)
+    parsed_start_time = dt.time.fromisoformat(start_time)
+    parsed_end_time = dt.time.fromisoformat(end_time)
+
+    return {
+        "parsed_date": parsed_date,
+        "parsed_start_time": str(parsed_start_time),
+        "parsed_end_time": str(parsed_end_time),
+    }
 
 
 @app.get("/admin/edit-categories")

@@ -191,7 +191,11 @@ def template(
     )
 
 
-def contain_in_box(inside: str, name: str | None = None) -> str:
+def contain_in_box(
+    inside: str,
+    name: str | None = None,
+    class_: str = "box",
+) -> str:
     """Contain HTML in a box."""
     if name is not None:
         inside = "\n".join(
@@ -204,7 +208,7 @@ def contain_in_box(inside: str, name: str | None = None) -> str:
     return wrap_tag(
         "div",
         inside,
-        class_="box",
+        class_=class_,
     )
 
 

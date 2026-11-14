@@ -202,6 +202,26 @@ def generate_style_css() -> str:
                 margin=0,
             ),
             htmlgen.css(
+                ".red-text",
+                color="red",
+            ),
+            htmlgen.css(
+                ".red-border",
+                border=("2px", "solid", "red"),
+            ),
+            htmlgen.css(
+                'button[type="submit"].red-border',
+                border=("2px", "solid", "red"),
+            ),
+            htmlgen.css(
+                ".green-border",
+                border=("2px", "solid", "limegreen"),
+            ),
+            htmlgen.css(
+                'button[type="submit"].green-border',
+                border=("2px", "solid", "limegreen"),
+            ),
+            htmlgen.css(
                 "@media (prefers-color-scheme: dark)",
                 htmlgen.css(
                     "body",
@@ -795,21 +815,13 @@ def generate_success_page() -> str:
     return_link_block = htmlgen.jinja_expression("self.return_link()")
     refresh_content = f"{refreshes_after};url={return_link_block}"
 
-    custom_css = "\n".join(
-        (
-            htmlgen.css(
-                ".success_check",
-                display="block",
-                color="#198754",
-                font_size="5rem",
-                line_height=1,
-                margin=("1rem", "0"),
-            ),
-            htmlgen.css(
-                ".box",
-                border=("2px", "solid", "limegreen"),
-            ),
-        ),
+    custom_css = htmlgen.css(
+        ".success_check",
+        display="block",
+        color="#198754",
+        font_size="5rem",
+        line_height=1,
+        margin=("1rem", "0"),
     )
 
     head = "\n".join(
@@ -850,7 +862,7 @@ def generate_success_page() -> str:
             ),
         ),
     )
-    body = htmlgen.contain_in_box(content)
+    body = htmlgen.contain_in_box(content, class_="box green-border")
     return template_return_footer(
         body,
         title="Success",
@@ -867,7 +879,7 @@ def generate_prompt_password_get() -> str:
         "i",
         htmlgen.jinja_expression("error_message"),
         block=False,
-        style="".join(htmlgen.css_style(color="red"))[:-1],
+        class_="red-text",
     )
 
     error_message = htmlgen.jinja_if_block(
@@ -1144,6 +1156,219 @@ def generate_admin_edit_entries_select_user_get() -> str:
     )
 
 
+@save_template_as("admin_configure_entry")
+def generate_admin_configure_entry_get() -> str:
+    """Generate admin configure entry GET page."""
+    firstname = htmlgen.jinja_expression("firstname")
+    lastname = htmlgen.jinja_expression("lastname")
+    rows = (
+        (
+            htmlgen.wrap_tag(
+                "p",
+                f"First name: <code>{firstname}</code>",
+                block=False,
+            ),
+            htmlgen.wrap_tag(
+                "p",
+                f"Last name: <code>{lastname}</code>",
+                block=False,
+            ),
+            ##htmlgen.input_field(
+            ##    "firstname_field",
+            ##    "First name",
+            ##    attrs={
+            ##        "disabled": True,
+            ##        "size": 30,
+            ##        "value": htmlgen.jinja_expression("firstname"),
+            ##    },
+            ##),
+            ##htmlgen.input_field(
+            ##    "lastname_field",
+            ##    "Last name",
+            ##    attrs={
+            ##        "disabled": True,
+            ##        "size": 30,
+            ##        "value": htmlgen.jinja_expression("lastname"),
+            ##    },
+            ##),
+        ),
+        (
+            "\n".join(
+                (
+                    htmlgen.wrap_tag(
+                        "label",
+                        "Day",
+                        False,
+                        for_="day_field",
+                    ),
+                    htmlgen.jinja_arg_tag(
+                        "input",
+                        (
+                            htmlgen.jinja_if_block(
+                                {
+                                    "date": 'disabled="true" ',
+                                    "": 'required="true" ',
+                                },
+                                block=False,
+                            ),
+                            htmlgen.jinja_if_block(
+                                {
+                                    "date_min": 'min="{{ date_min }}" ',
+                                },
+                                block=False,
+                            ),
+                            htmlgen.jinja_if_block(
+                                {
+                                    "date_max": 'max="{{ date_max }}" ',
+                                },
+                                block=False,
+                            ),
+                        ),
+                        id_="day_field",
+                        type_="date",
+                        name="date",
+                        autocomplete="off",
+                        minlength=2,
+                        maxlength=20,
+                        size=30,
+                        value=htmlgen.jinja_expression("date"),
+                    ),
+                ),
+            ),
+            "",
+        ),
+        (
+            "\n".join(
+                (
+                    htmlgen.wrap_tag(
+                        "label",
+                        "Check-in Time",
+                        False,
+                        for_="start_time_field",
+                    ),
+                    htmlgen.jinja_arg_tag(
+                        "input",
+                        (
+                            htmlgen.jinja_if_block(
+                                {
+                                    "start_time_disabled": 'disabled="true" ',
+                                    "": 'required="true" ',
+                                },
+                                block=False,
+                            ),
+                        ),
+                        id_="start_time_field",
+                        type_="time",
+                        name="start_time",
+                        autocomplete="off",
+                        minlength=2,
+                        maxlength=20,
+                        size=30,
+                        value=htmlgen.jinja_expression("start_time"),
+                    ),
+                ),
+            ),
+            "\n".join(
+                (
+                    htmlgen.wrap_tag(
+                        "label",
+                        "Checkout Time",
+                        False,
+                        for_="end_time_field",
+                    ),
+                    htmlgen.jinja_arg_tag(
+                        "input",
+                        (
+                            htmlgen.jinja_if_block(
+                                {
+                                    "end_time_disabled": 'disabled="true" ',
+                                    "": 'required="true" ',
+                                },
+                                block=False,
+                            ),
+                        ),
+                        id_="end_time_field",
+                        type_="time",
+                        name="end_time",
+                        autocomplete="off",
+                        minlength=2,
+                        maxlength=20,
+                        size=30,
+                        value=htmlgen.jinja_expression("end_time"),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    entry_table_rows = htmlgen.render_table_rows(
+        rows,
+        first_is_header=False,
+        cell_block=True,
+    )
+
+    entry_information_table = htmlgen.table(entry_table_rows)
+
+    creat_resolv = htmlgen.jinja_if_block(
+        {
+            "creating": "creat",
+            "": "resolv",
+        },
+        block=False,
+    )
+
+    create_resolve = f"{creat_resolv}e"
+
+    return_button = htmlgen.create_link(
+        htmlgen.jinja_expression("return_link"),
+        f"Return to {create_resolve} entry panel without saving",
+        class_="submit_button",
+    )
+
+    permanently_delete_button = htmlgen.jinja_if_block(
+        {
+            "not creating": htmlgen.create_button(
+                "<b>Permanently</b> delete entry",
+                type_="submit",
+                name="permanently_delete",
+                class_="red-border",
+            ),
+        },
+    )
+
+    update_create = htmlgen.jinja_if_block(
+        {
+            "creating": "Create entry",
+            "": "Update entry and resolve",
+        },
+        block=False,
+    )
+
+    submit_button = htmlgen.create_button(
+        update_create,
+        type_="submit",
+    )
+
+    html = htmlgen.form(
+        "entry_information",
+        "\n".join(
+            (
+                entry_information_table,
+                htmlgen.tag("br"),
+                htmlgen.jinja_super_block(),
+                return_button,
+                permanently_delete_button,
+                submit_button,
+            ),
+        ),
+    )
+
+    return template_admin_return_signout_footer(
+        html,
+        title="Entry Information",
+    )
+
+
 @save_template_as("admin_select_edit_user")
 def generate_admin_edit_user_get() -> str:
     """Generate admin select edit user from list GET page."""
@@ -1284,9 +1509,7 @@ def generate_admin_edit_user_modify_user_get() -> str:
                 "Grant Administrator Privileges",
                 type_="submit",
                 name="toggle_admin",
-                style="".join(
-                    htmlgen.css_style(border=("2px", "solid", "red")),
-                )[:-1],
+                class_="red-border",
             ),
         },
     )

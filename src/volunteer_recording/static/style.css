@@ -86,6 +86,21 @@ a.submit_button, a.submit_button:link, a.submit_button:visited, a.submit_button:
   display: inline-block;
   margin: 0;
 }
+.red-text {
+  color: red;
+}
+.red-border {
+  border: 2px solid red;
+}
+button[type="submit"].red-border {
+  border: 2px solid red;
+}
+.green-border {
+  border: 2px solid limegreen;
+}
+button[type="submit"].green-border {
+  border: 2px solid limegreen;
+}
 @media (prefers-color-scheme: dark) {
   body {
     background-color: #181818;

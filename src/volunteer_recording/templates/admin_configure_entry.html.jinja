@@ -1,0 +1,42 @@
+{% extends "admin_return_signout.html.jinja" %}
+{% block title scoped %}Entry Information{% endblock title %}
+{% block body scoped %}
+<form id="entry_information" name="entry_information" method="post">
+  <table>
+    <tr>
+      <td>
+        <p>First name: <code>{{ firstname }}</code></p>
+      </td>
+      <td>
+        <p>Last name: <code>{{ lastname }}</code></p>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <label for="day_field">Day</label>
+        <input {% if date %}disabled="true" {% else %}required="true" {% endif %}{% if date_min %}min="{{ date_min }}" {% endif %}{% if date_max %}max="{{ date_max }}" {% endif %}id="day_field" type="date" name="date" autocomplete="off" minlength="2" maxlength="20" size="30" value="{{ date }}">
+      </td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>
+        <label for="start_time_field">Check-in Time</label>
+        <input {% if start_time_disabled %}disabled="true" {% else %}required="true" {% endif %}id="start_time_field" type="time" name="start_time" autocomplete="off" minlength="2" maxlength="20" size="30" value="{{ start_time }}">
+      </td>
+      <td>
+        <label for="end_time_field">Checkout Time</label>
+        <input {% if end_time_disabled %}disabled="true" {% else %}required="true" {% endif %}id="end_time_field" type="time" name="end_time" autocomplete="off" minlength="2" maxlength="20" size="30" value="{{ end_time }}">
+      </td>
+    </tr>
+  </table>
+  <br>
+  {{ super() -}}
+  <a href="{{ return_link }}" class="submit_button">Return to {% if creating %}creat{% else %}resolv{% endif %}e entry panel without saving</a>
+  {% if not creating %}
+  <button type="submit" name="permanently_delete" class="red-border"><b>Permanently</b> delete entry</button>
+  {% endif %}
+  <button type="submit">{% if creating %}Create entry{% else %}Update entry and resolve{% endif %}</button>
+</form>
+{% endblock body %}
+{% block return_text scoped %}Sign out{% endblock return_text %}
+{% block return_link scoped %}/admin/signout{% endblock return_link %}
