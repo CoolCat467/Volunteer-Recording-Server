@@ -17,6 +17,13 @@ This can be changed in the configuration file (more info below)
 pip install git+https://github.com/CoolCat467/Volunteer-Recording-Server.git
 ```
 
+## Setup
+Create a file named `.env` and set up the cookie secret.
+```
+COOKIE_SECRET=Don't use this example key.
+```
+
+
 ## Run
 ```console
 volunteer_recording_server
@@ -30,22 +37,20 @@ as the server starts up.
 
 
 ## Configuration
-The main configuration file is saved either in
-`$XDG_CONFIG_HOME/leaderboard_webserver/config.toml` or
-`$HOME/.config/leaderboard_webserver/config.toml`, where you can change
-things like what port(s) the webserver is hosted on, hypercorn
-configuration, and enabling SSL support!
+The main configuration file is saved in a folder controlled by
+platformdirs, but it should be your system's application configuration
+folder. The program will print it out on startup, so you can find
+exactly where from there. In the config file you can change things like
+what port(s) the webserver is hosted on, hypercorn configuration, and
+enabling SSL support!
 
 Create the default configuration file by running
 ```console
-leaderboard_server --create-default-config
+volunteer_recording_server --create-default-config
 ```
 
-Important: When you do this program, the configuration file will be
-saved in `$XDG_CONFIG_HOME/leaderboard_webserver` (`~/.config` if
-$XDG_CONFIG_HOME not set) and the program will create these files if
-they do not exist.
-THIS CAN OVERWRITE EXISTING CONFIGURATION FILES!
+Important: When you run this command, the new configuration can
+overwrite existing configuration files!
 
 
 ## Enabling SSL Support
