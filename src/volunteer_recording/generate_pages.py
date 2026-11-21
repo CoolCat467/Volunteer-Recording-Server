@@ -1044,6 +1044,103 @@ def template_admin_return_signout_footer(
     return "\n".join(sections)
 
 
+@save_template_as("admin_view_time_interval")
+def admin_view_time_interval_get() -> str:
+    """Generate admin view time interval GET page."""
+    range_text = htmlgen.jinja_expression("range_text")
+    autofill_range = htmlgen.jinja_for_loop(
+        ("range_text",),
+        (
+            "week",
+            "month",
+            "year",
+        ),
+        htmlgen.create_button(
+            f"This {range_text}",
+            type_="submit",
+            name="autofill_range_select",
+            value=range_text,
+        ),
+    )
+
+    autofill_range_content = "\n".join(
+        (
+            htmlgen.wrap_tag("p", "Autofill Range", block=False),
+            autofill_range,
+        ),
+    )
+
+    range_selection_row = htmlgen.table_row_elements(
+        (
+            htmlgen.input_field(
+                "interval_start_field",
+                "Interval Start Day",
+                field_name="interval_start_day",
+                field_type="date",
+                attrs={
+                    "autocomplete": "off",
+                    "size": 30,
+                    "value": htmlgen.jinja_expression("interval_start_day"),
+                },
+            ),
+            htmlgen.input_field(
+                "interval_end_field",
+                "Interval End Day",
+                field_name="interval_end_day",
+                field_type="date",
+                attrs={
+                    "autocomplete": "off",
+                    "size": 30,
+                    "value": htmlgen.jinja_expression("interval_end_day"),
+                },
+            ),
+            htmlgen.create_button(
+                "Submit",
+                type_="submit",
+            ),
+        ),
+    )
+
+    range_selection_content = htmlgen.table(
+        range_selection_row,
+    )
+
+    hours_per_user_table = htmlgen.wrap_tag(
+        "i",
+        "TODO: hours_per_user_table",
+        block=False,
+    )
+
+    hours_per_user_categories_tables = htmlgen.wrap_tag(
+        "i",
+        "TODO: hours_per_user_categories_tables",
+        block=False,
+    )
+
+    form_content = "\n".join(
+        (
+            autofill_range_content,
+            range_selection_content,
+            hours_per_user_table,
+            htmlgen.tag("br"),
+            hours_per_user_categories_tables,
+            htmlgen.tag("br"),
+            htmlgen.tag("br"),
+            htmlgen.jinja_super_block(),
+        ),
+    )
+
+    body = htmlgen.form(
+        "view_time_interval",
+        form_content,
+    )
+
+    return template_admin_return_signout_footer(
+        body,
+        title="Administration View Time Interval Panel",
+    )
+
+
 @save_template_as("admin_edit_entries")
 def admin_edit_entries_get() -> str:
     """Generate admin edit entries GET page."""

@@ -663,6 +663,9 @@ class CalendarDatabase(Database[Calendar]):
                 yield user_id, event
 
 
+##    def yield_all_events
+
+
 class PasswordDatabase(MappingDatabase[int, str]):
     """Database of password records."""
 

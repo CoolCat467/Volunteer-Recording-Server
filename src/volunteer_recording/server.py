@@ -29,6 +29,7 @@ import datetime as dt
 import re
 import tomllib
 import traceback
+from calendar import monthrange
 from collections.abc import (
     AsyncIterator,
     Coroutine,
@@ -959,21 +960,64 @@ async def handle_admin_signout_get() -> AsyncIterator[str]:
     )
 
 
-@app.get("/admin/view-time-interval")
-@active_session_required
-async def handle_admin_view_time_interval_get() -> tuple[
-    AsyncIterator[str],
-    int,
-]:
-    """Handle administrator view time interval GET request."""
-    # Check that session is still valid
-    user_id = get_user_id_from_session()
+def yield_days(start: dt.date, end: dt.date) -> Generator[dt.date]:
+    """Yield every day between the given start and end date, inclusive."""
+    for i in range((end - start).days + 1):
+        yield start + dt.timedelta(days=i)
 
-    return await get_exception_page(
-        404,  # not found
-        "Not Found",
-        f"You are logged in as {user_id = }<br><i>This page has not been implemented yet™</i>",
-        return_link="/admin",
+
+##def yield_time_interval_table(start: dt.date, end: dt.date) -> None:
+##    calendar_db = APP_DATA["calendar"]
+
+
+@app.get("/admin/view-time-interval")
+@app.post("/admin/view-time-interval")
+@active_session_required
+async def handle_admin_view_time_interval_get() -> AsyncIterator[str]:
+    """Handle administrator view time interval GET request."""
+    multi_dict = await request.form
+
+    autofill_range_select = multi_dict.get("autofill_range_select")
+    raw_interval_start_day = multi_dict.get("interval_start_day", "")
+    raw_interval_end_day = multi_dict.get("interval_end_day", "")
+
+    interval_start_day = parse_iso_date(raw_interval_start_day)
+    interval_end_day = parse_iso_date(raw_interval_end_day)
+
+    today = dt.date.today()
+    if (
+        interval_start_day is None
+        or interval_end_day is None
+        or autofill_range_select == "week"
+    ):
+        calendar = today.isocalendar()
+        interval_start_day = dt.date.fromisocalendar(
+            calendar.year,
+            calendar.week,
+            1,
+        )
+        interval_end_day = dt.date.fromisocalendar(
+            calendar.year,
+            calendar.week,
+            7,
+        )
+    elif autofill_range_select == "month":
+        interval_start_day = today.replace(day=1)
+        interval_end_day = today.replace(
+            day=monthrange(today.year, today.month)[1],
+        )
+    elif autofill_range_select == "year":
+        interval_start_day = today.replace(month=1, day=1)
+        interval_end_day = today.replace(month=12, day=31)
+
+    return await stream_template(
+        "admin_view_time_interval.html.jinja",
+        interval_start_day=interval_start_day,
+        interval_end_day=interval_end_day,
+        ##time_interval_records=yield_time_interval_table(
+        ##    interval_start_day,
+        ##    interval_end_day,
+        ##),
     )
 
 

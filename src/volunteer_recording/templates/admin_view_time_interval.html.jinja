@@ -1,0 +1,27 @@
+{% extends "admin_return_signout.html.jinja" %}
+{% block title scoped %}Administration View Time Interval Panel{% endblock title %}
+{% block body scoped %}
+<form id="view_time_interval" name="view_time_interval" method="post">
+  <p>Autofill Range</p>
+  {% for range_text in ('week', 'month', 'year') %}
+  <button type="submit" name="autofill_range_select" value="{{ range_text }}">This {{ range_text }}</button>
+  {% endfor %}
+  <table>
+    <tr>
+      <td><label for="interval_start_field">Interval Start Day</label>
+      <input type="date" id="interval_start_field" name="interval_start_day" autocomplete="off" size="30" value="{{ interval_start_day }}"></td>
+      <td><label for="interval_end_field">Interval End Day</label>
+      <input type="date" id="interval_end_field" name="interval_end_day" autocomplete="off" size="30" value="{{ interval_end_day }}"></td>
+      <td><button type="submit">Submit</button></td>
+    </tr>
+  </table>
+  <i>TODO: hours_per_user_table</i>
+  <br>
+  <i>TODO: hours_per_user_categories_tables</i>
+  <br>
+  <br>
+  {{ super() -}}
+</form>
+{% endblock body %}
+{% block return_text scoped %}Sign out{% endblock return_text %}
+{% block return_link scoped %}/admin/signout{% endblock return_link %}
