@@ -320,7 +320,7 @@ class Calendar:
                 return BadEntryReason.FutureEvent
 
         # Also problems if there is any overlap between existing intervals.
-        for start, end in self.yield_interval_data(date):
+        for start, end in self.yield_interval_time_data(date):
             if start_time >= start and end_time <= end:
                 return BadEntryReason.IntervalCollision
 
@@ -405,10 +405,10 @@ class Calendar:
     def yield_interval_data(
         self,
         date: dt.date,
-    ) -> Generator[tuple[dt.time, dt.time]]:
-        """Yield (start time, end time) tuples for the given day."""
+    ) -> Generator[tuple[Timestamp, Timestamp]]:
+        """Yield (start Timestamp, end Timestamp) tuples for the given day."""
         timestamps = self.days.get(date, ())
-        start: dt.time
+        start: Timestamp
         for index, timestamp in enumerate(timestamps):
             if not index & 1:
                 if timestamp.type_ not in (
@@ -416,19 +416,28 @@ class Calendar:
                     StampType.AUTO_CHECK_IN,
                 ):
                     raise RuntimeError("Corrupted time interval")
-                start = timestamp.time
+                start = timestamp
             else:
                 if timestamp.type_ not in (
                     StampType.CHECKOUT,
                     StampType.AUTO_CHECKOUT,
                 ):
                     raise RuntimeError("Corrupted time interval")
-                yield (start, timestamp.time)
+                yield (start, timestamp)
         if len(timestamps) % 2 != 0:
             # missing end entry that should have been added by
             # end_of_day_check_missing_stamp, presumably the current
             # date is today and it hasn't run yet.
-            yield (start, dt.time(23, 59, 59))
+            end = Timestamp(StampType.AUTO_CHECKOUT, dt.time(23, 59, 59))
+            yield (start, end)
+
+    def yield_interval_time_data(
+        self,
+        date: dt.date,
+    ) -> Generator[tuple[dt.time, dt.time]]:
+        """Yield (start time, end time) tuples for the given day."""
+        for start, end in self.yield_interval_data(date):
+            yield (start.time, end.time)
 
     def yield_automatic_locations(
         self,
@@ -454,7 +463,7 @@ class Calendar:
             for event in self.yield_automatic_locations(date):
                 yield date, event
 
-    def yield_all_unresolved_events(
+    def yield_unresolved_events(
         self,
     ) -> Generator[tuple[dt.date, StampType]]:
         """Yield (date, StampType) tuples for all unresolved events."""
@@ -521,12 +530,12 @@ class CalendarDatabase(Database[Calendar]):
             | orjson.OPT_NON_STR_KEYS,
         )
 
-    def yield_all_automatic_locations(
+    def yield_all_unresolved_events(
         self,
     ) -> Generator[tuple[int, tuple[dt.date, StampType]]]:
         """Yield (user_id, (date, stamp type)) automatic event tuples."""
         for user_id, calendar in enumerate(self):
-            for event in calendar.yield_all_unresolved_events():
+            for event in calendar.yield_unresolved_events():
                 yield user_id, event
 
 

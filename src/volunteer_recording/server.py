@@ -50,6 +50,7 @@ from typing import (
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
+import orjson
 import platformdirs
 import trio
 from dotenv import load_dotenv
@@ -169,7 +170,6 @@ class UnresolvedStampsCache:
         event: tuple[dt.date, database_bridge.StampType],
     ) -> None:
         """Add event from adding a timestamp."""
-        print(f"add_event {user_id = } {event = }")
         date, stamp = event
         self.events.setdefault(stamp, []).append((user_id, date))
 
@@ -182,6 +182,13 @@ class UnresolvedStampsCache:
             event_counts.get(database_bridge.StampType.AUTO_CHECK_IN, 0),
             event_counts.get(database_bridge.StampType.AUTO_CHECKOUT, 0),
         )
+
+    def get_unresolved_events(
+        self,
+        stamp_type: database_bridge.StampType,
+    ) -> Iterable[tuple[int, dt.date]]:
+        """Return a list of unresolved (user_id, date) tuples."""
+        return self.events.get(stamp_type, ())
 
 
 class AppData(TypedDict):
@@ -946,22 +953,55 @@ async def handle_admin_edit_entries_get() -> AsyncIterator[str]:
     )
 
 
+def yield_unresolved_event_data(
+    stamp_type: database_bridge.StampType,
+) -> Generator[tuple[database_bridge.User, dt.date, dt.time]]:
+    """Yield unresolved event (User, date, time) records."""
+    unresolved_cache = APP_DATA["unresolved_cache"]
+    calendar_db = APP_DATA["calendar"]
+    user_db = APP_DATA["user"]
+
+    for user_id, date in set(
+        unresolved_cache.get_unresolved_events(stamp_type),
+    ):
+        user_calendar = calendar_db[user_id]
+        for start, end in user_calendar.yield_interval_data(date):
+            non_automatic_time: dt.time
+
+            if start.type_ == stamp_type:
+                non_automatic_time = end.time
+            elif end.type_ == stamp_type:
+                non_automatic_time = start.time
+            else:
+                continue
+
+            yield user_db[user_id], date, non_automatic_time
+
+
 @app.get("/admin/edit-entries/checkins")
 @active_session_required
-async def handle_admin_edit_entries_checkins_get() -> tuple[
-    AsyncIterator[str],
-    int,
-]:
-    """Handle administrator edit entries GET request."""
-    # Check that session is still valid
-    user_id = get_user_id_from_session()
-
-    return await get_exception_page(
-        404,  # not found
-        "Not Found",
-        f"You are logged in as {user_id = }<br><i>This page has not been implemented yet™</i>",
-        return_link="/admin",
+async def handle_admin_edit_entries_checkins_get() -> (
+    tuple[AsyncIterator[str], int] | dict[str, object]
+):
+    """Handle administrator edit check-in entries GET request."""
+    unresolved_checkins = yield_unresolved_event_data(
+        database_bridge.StampType.AUTO_CHECK_IN,
     )
+
+    records_exist, records_gen = iterable_has_values(unresolved_checkins)
+
+    if not records_exist:
+        return await get_exception_page(
+            404,  # not found
+            "Not Found",
+            "There are no unresolved check-in entries at this time.",
+            return_link="/admin/edit-entries",
+        )
+
+    # TODO: Stream missing entries table
+    value = orjson.loads(orjson.dumps(tuple(records_gen)))
+    assert isinstance(value, dict)
+    return value
 
 
 @app.get("/admin/edit-entries/checkouts")
@@ -1550,7 +1590,9 @@ def ask_integer(prompt: str | None = None) -> int:
             print("Invalid input, enter an integer.")
 
 
+# types: attr-defined error: "CalendarDatabase" has no attribute "yield_all_automatic_locations"
 def ask_date(select: str = "Current ") -> tuple[int, int, int]:
+    # types:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     """Return year, month, day tuple."""
     if select and not select.endswith(" "):
         select += " "
@@ -1577,7 +1619,7 @@ def add_unresolved_events_to_cache() -> None:
     calendar_db = APP_DATA["calendar"]
     unresolved_cache = APP_DATA["unresolved_cache"]
 
-    for user_id, event in calendar_db.yield_all_automatic_locations():
+    for user_id, event in calendar_db.yield_all_unresolved_events():
         unresolved_cache.add_event(user_id, event)
 
 
@@ -1596,6 +1638,7 @@ async def async_run_server(
                 "admin",
             )
             print("Created admin user with password `admin`")
+        add_unresolved_events_to_cache()
         async with trio.open_nursery() as nursery:
             nursery.start_soon(serve_partial)
 
