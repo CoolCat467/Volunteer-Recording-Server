@@ -255,6 +255,15 @@ class Calendar:
             },
         )
 
+    def get_timestamp(self, date: dt.date, index: int) -> Timestamp | None:
+        """Return a specific timestamp given the date and index or None if not exists."""
+        day = self.days.get(date)
+        if day is None:
+            return None
+        if index < 0 or index >= len(day):
+            return None
+        return day[index]
+
     def yield_timestamp_types(self, date: dt.date) -> Generator[StampType]:
         """Yield TimestampTypes for the given date."""
         for timestamp in self.days.get(date, ()):
@@ -431,6 +440,17 @@ class Calendar:
             end = Timestamp(StampType.AUTO_CHECKOUT, dt.time(23, 59, 59))
             yield (start, end)
 
+    def get_interval_data(
+        self,
+        date: dt.date,
+        target_interval_index: int,
+    ) -> tuple[Timestamp, Timestamp] | None:
+        """Return (start Timestamp, end Timestamp) tuple for a given interval on a given day."""
+        for index, (start, end) in enumerate(self.yield_interval_data(date)):
+            if index == target_interval_index:
+                return (start, end)
+        return None
+
     def yield_interval_time_data(
         self,
         date: dt.date,
@@ -454,6 +474,17 @@ class Calendar:
             ):
                 yield index, prior_time, next_time
             prior_time = next_time
+
+    def get_automatic_location_range(
+        self,
+        date: dt.date,
+        target_index: int,
+    ) -> tuple[dt.time, dt.time] | None:
+        """Return (minimum time, maximum time) tuple from automatically added timestamp given target index and date."""
+        for index, start, end in self.yield_automatic_locations(date):
+            if index == target_index:
+                return (start, end)
+        return None
 
     def yield_all_automatic_locations(
         self,
@@ -591,74 +622,70 @@ async def run() -> None:
     ##
     ##    database.add(user)
     ##    print(f"{database.data = }")
-    async with CalendarDatabase("timestamps.json") as database:
-        database.data.clear()
-        calendar_id = database.add(Calendar())
-        calendar = database[calendar_id]
-        print(f"{calendar = }")
+    # async with CalendarDatabase("timestamps.json") as database:
+    calendar = Calendar()
+    print(f"{calendar = }")
 
-        calendar.add_timestamp(StampType.CHECK_IN, dt.datetime.now())
-        calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
-        calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
-        calendar.add_timestamp(StampType.CHECK_IN, dt.datetime.now())
-        calendar.end_of_day_check_missing_stamp(dt.date.today())
-        ##        calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
-        ##        print("\n".join(map(repr, database.data[0].yield_timestamp_types(dt.date.today()))))
-        print("\n".join(map(repr, database.data[0].days[dt.date.today()])))
-        if tuple(database.data[0].yield_timestamp_types(dt.date.today())) != (
-            StampType.CHECK_IN,
-            StampType.CHECKOUT,
-            StampType.AUTO_CHECK_IN,
-            StampType.CHECKOUT,
-            StampType.CHECK_IN,
-            StampType.AUTO_CHECKOUT,
-        ):
-            print("bad")
-        print("------")
-        database.data[0].days.clear()
-        calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
-        calendar.add_timestamp(StampType.CHECK_IN, dt.datetime.now())
-        calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
-        calendar.end_of_day_check_missing_stamp(dt.date.today())
-        ##        print("\n".join(map(repr, database.data[0].yield_timestamp_types(dt.date.today()))))
-        print("\n".join(map(repr, database.data[0].days[dt.date.today()])))
-        if tuple(database.data[0].yield_timestamp_types(dt.date.today())) != (
-            StampType.AUTO_CHECK_IN,
-            StampType.CHECKOUT,
-            StampType.CHECK_IN,
-            StampType.CHECKOUT,
-        ):
-            print("bad")
-        print("------")
-        database.data[0].days.clear()
-        calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
-        calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
-        calendar.end_of_day_check_missing_stamp(dt.date.today())
-        ##        print("\n".join(map(repr, database.data[0].yield_timestamp_types(dt.date.today()))))
-        print("\n".join(map(repr, database.data[0].days[dt.date.today()])))
-        if tuple(database.data[0].yield_timestamp_types(dt.date.today())) != (
-            StampType.AUTO_CHECK_IN,
-            StampType.CHECKOUT,
-            StampType.AUTO_CHECK_IN,
-            StampType.CHECKOUT,
-        ):
-            print("bad")
-        print("------")
-        database.data[0].days.clear()
-        calendar.add_timestamp(StampType.CHECK_IN, dt.datetime.now())
-        calendar.add_timestamp(StampType.CHECK_IN, dt.datetime.now())
-        calendar.end_of_day_check_missing_stamp(dt.date.today())
-        ##        print("\n".join(map(repr, database.data[0].yield_timestamp_types(dt.date.today()))))
-        print("\n".join(map(repr, database.data[0].days[dt.date.today()])))
-        if tuple(database.data[0].yield_timestamp_types(dt.date.today())) != (
-            StampType.CHECK_IN,
-            StampType.AUTO_CHECKOUT,
-            StampType.CHECK_IN,
-            StampType.AUTO_CHECKOUT,
-        ):
-            print("bad")
-
-        print(f"{database.data = }")
+    calendar.add_timestamp(StampType.CHECK_IN, dt.datetime.now())
+    calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
+    calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
+    calendar.add_timestamp(StampType.CHECK_IN, dt.datetime.now())
+    calendar.end_of_day_check_missing_stamp(dt.date.today())
+    ##        calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
+    ##        print("\n".join(map(repr, database.data[0].yield_timestamp_types(dt.date.today()))))
+    print("\n".join(map(repr, calendar.days[dt.date.today()])))
+    if tuple(calendar.yield_timestamp_types(dt.date.today())) != (
+        StampType.CHECK_IN,
+        StampType.CHECKOUT,
+        StampType.AUTO_CHECK_IN,
+        StampType.CHECKOUT,
+        StampType.CHECK_IN,
+        StampType.AUTO_CHECKOUT,
+    ):
+        print("bad")
+    print("------")
+    calendar.days.clear()
+    calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
+    calendar.add_timestamp(StampType.CHECK_IN, dt.datetime.now())
+    calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
+    calendar.end_of_day_check_missing_stamp(dt.date.today())
+    ##        print("\n".join(map(repr, database.data[0].yield_timestamp_types(dt.date.today()))))
+    print("\n".join(map(repr, calendar.days[dt.date.today()])))
+    if tuple(calendar.yield_timestamp_types(dt.date.today())) != (
+        StampType.AUTO_CHECK_IN,
+        StampType.CHECKOUT,
+        StampType.CHECK_IN,
+        StampType.CHECKOUT,
+    ):
+        print("bad")
+    print("------")
+    calendar.days.clear()
+    calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
+    calendar.add_timestamp(StampType.CHECKOUT, dt.datetime.now())
+    calendar.end_of_day_check_missing_stamp(dt.date.today())
+    ##        print("\n".join(map(repr, database.data[0].yield_timestamp_types(dt.date.today()))))
+    print("\n".join(map(repr, calendar.days[dt.date.today()])))
+    if tuple(calendar.yield_timestamp_types(dt.date.today())) != (
+        StampType.AUTO_CHECK_IN,
+        StampType.CHECKOUT,
+        StampType.AUTO_CHECK_IN,
+        StampType.CHECKOUT,
+    ):
+        print("bad")
+    print("------")
+    calendar.days.clear()
+    calendar.add_timestamp(StampType.CHECK_IN, dt.datetime.now())
+    calendar.add_timestamp(StampType.CHECK_IN, dt.datetime.now())
+    calendar.end_of_day_check_missing_stamp(dt.date.today())
+    ##        print("\n".join(map(repr, database.data[0].yield_timestamp_types(dt.date.today()))))
+    print("\n".join(map(repr, calendar.days[dt.date.today()])))
+    if tuple(calendar.yield_timestamp_types(dt.date.today())) != (
+        StampType.CHECK_IN,
+        StampType.AUTO_CHECKOUT,
+        StampType.CHECK_IN,
+        StampType.AUTO_CHECKOUT,
+    ):
+        print("bad")
 
 
 if __name__ == "__main__":

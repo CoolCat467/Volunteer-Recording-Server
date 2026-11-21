@@ -311,7 +311,7 @@ class Database[T](SerializableSequence[T]):
 
     def get(self, index: int, default: T | None = None) -> T | None:
         """Return element at index or default if out of bounds."""
-        if index < 0 or index > len(self):
+        if index < 0 or index >= len(self):
             return default
         return self[index]
 

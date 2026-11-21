@@ -1156,6 +1156,65 @@ def generate_admin_edit_entries_select_user_get() -> str:
     )
 
 
+@save_template_as("admin_edit_entries_select_entry")
+def generate_admin_edit_entries_select_entry_get() -> str:
+    """Generate admin edit entries select entry from list GET page."""
+    select_entry_button = htmlgen.create_button(
+        "Select",
+        type_="submit",
+        name="select_data",
+        value=htmlgen.jinja_expression("select_data"),
+    )
+
+    select_entry_table = htmlgen.jinja_table(
+        None,
+        ("First Name", "Last Name", "Date/Time", "Select"),
+        htmlgen.jinja_table_row(
+            ("select_data", "user", "datetime"),
+            "entry_records",
+            "\n".join(
+                (
+                    htmlgen.table_cell(
+                        htmlgen.jinja_expression("user.firstname|escape"),
+                    ),
+                    htmlgen.table_cell(
+                        htmlgen.jinja_expression("user.lastname|escape"),
+                    ),
+                    htmlgen.table_cell(
+                        htmlgen.jinja_expression("datetime"),
+                    ),
+                    htmlgen.table_cell(
+                        select_entry_button,
+                    ),
+                ),
+            ),
+        ),
+        class_="user-table center",
+    )
+
+    back_link = htmlgen.create_link(
+        "/admin/edit-entries",
+        "Return to edit entries panel",
+        class_="submit_button",
+    )
+
+    form_content = "\n".join(
+        (
+            select_entry_table,
+            htmlgen.tag("br"),
+            htmlgen.jinja_super_block(),
+            back_link,
+        ),
+    )
+
+    html = htmlgen.form("select_entry", form_content)
+
+    return template_admin_return_signout_footer(
+        html,
+        title="Select Unresolved Entry",
+    )
+
+
 @save_template_as("admin_configure_entry")
 def generate_admin_configure_entry_get() -> str:
     """Generate admin configure entry GET page."""

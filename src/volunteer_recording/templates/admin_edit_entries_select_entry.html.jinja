@@ -1,0 +1,30 @@
+{% extends "admin_return_signout.html.jinja" %}
+{% block title scoped %}Select Unresolved Entry{% endblock title %}
+{% block body scoped %}
+<form id="select_entry" name="select_entry" method="post">
+  <table class="user-table center">
+    <thead>
+      <tr>
+        {% for header_element in ('First Name', 'Last Name', 'Date/Time', 'Select') %}
+        <th>{{ header_element }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for select_data, user, datetime in entry_records %}
+      <tr>
+        <td>{{ user.firstname|escape }}</td>
+        <td>{{ user.lastname|escape }}</td>
+        <td>{{ datetime }}</td>
+        <td><button type="submit" name="select_data" value="{{ select_data }}">Select</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <br>
+  {{ super() -}}
+  <a href="/admin/edit-entries" class="submit_button">Return to edit entries panel</a>
+</form>
+{% endblock body %}
+{% block return_text scoped %}Sign out{% endblock return_text %}
+{% block return_link scoped %}/admin/signout{% endblock return_link %}

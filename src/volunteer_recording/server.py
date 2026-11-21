@@ -50,7 +50,6 @@ from typing import (
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
-import orjson
 import platformdirs
 import trio
 from dotenv import load_dotenv
@@ -68,6 +67,7 @@ from quart_auth import (
     logout_user,
 )
 from quart_trio import QuartTrio
+from werkzeug.routing import BaseConverter, ValidationError
 
 from volunteer_recording import database_bridge
 from volunteer_recording.elapsed import combine_end
@@ -104,6 +104,26 @@ PEPPER: Final = getenv("COOKIE_SECRET", "")
 
 PASSWORD_REGEX_STR: Final = r"(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9\s]).{5,}"  # noqa: S105
 PASSWORD_REGEX: Final = re.compile(PASSWORD_REGEX_STR)
+
+
+class DateConverter(BaseConverter):
+    """Converter for datetime.date parameters."""
+
+    __slots__ = ()
+
+    regex = r"\d{4}-\d{2}-\d{2}"
+
+    def to_python(self, value: str) -> dt.date:
+        """Convert given value to Python object or raise ValidationError."""
+        try:
+            return dt.date.fromisoformat(value)
+        except ValueError as exc:
+            # Invalid calendar dates (such as 2025-02-30) won't match.
+            raise ValidationError() from exc
+
+    def to_url(self, value: dt.date) -> str:
+        """Return given value as string."""
+        return value.isoformat()
 
 
 def datetime_now_tomorrow() -> dt.datetime:
@@ -206,6 +226,7 @@ app: Final = QuartTrio(  # pylint: disable=invalid-name
     static_folder="static",
     template_folder="templates",
 )
+app.url_map.converters["date"] = DateConverter
 QuartAuth(app)
 APP_DATA = AppData(
     user=database_bridge.UserDatabase(USER_DATA),
@@ -957,8 +978,8 @@ async def handle_admin_edit_entries_get() -> AsyncIterator[str]:
 
 def yield_unresolved_event_data(
     stamp_type: database_bridge.StampType,
-) -> Generator[tuple[database_bridge.User, dt.date, dt.time]]:
-    """Yield unresolved event (User, date, time) records."""
+) -> Generator[tuple[str, database_bridge.User, dt.datetime]]:
+    """Yield unresolved event (user_id/iso date string, User, datetime) records."""
     unresolved_cache = APP_DATA["unresolved_cache"]
     calendar_db = APP_DATA["calendar"]
     user_db = APP_DATA["user"]
@@ -967,7 +988,9 @@ def yield_unresolved_event_data(
         unresolved_cache.get_unresolved_events(stamp_type),
     ):
         user_calendar = calendar_db[user_id]
-        for start, end in user_calendar.yield_interval_data(date):
+        for interval_index, (start, end) in enumerate(
+            user_calendar.yield_interval_data(date),
+        ):
             non_automatic_time: dt.time
 
             if start.type_ == stamp_type:
@@ -976,8 +999,16 @@ def yield_unresolved_event_data(
                 non_automatic_time = start.time
             else:
                 continue
+            non_automatic_datetime = dt.datetime.combine(
+                date,
+                non_automatic_time,
+            )
 
-            yield user_db[user_id], date, non_automatic_time
+            yield (
+                f"{user_id}/{date}/{interval_index}",
+                user_db[user_id],
+                non_automatic_datetime,
+            )
 
 
 class EditEntryType(Enum):
@@ -1021,7 +1052,7 @@ def get_auto_stamp_type_from_entry_type(
 )
 @active_session_required
 async def handle_admin_edit_entries_type_get() -> (
-    tuple[AsyncIterator[str], int] | list[dict[str, str | int | bool]]
+    tuple[AsyncIterator[str], int] | AsyncIterator[str]
 ):
     """Handle administrator edit type entries GET request."""
     entry_type = get_edit_entry_type_from_full_path(request.full_path)
@@ -1040,10 +1071,230 @@ async def handle_admin_edit_entries_type_get() -> (
             return_link="/admin/edit-entries",
         )
 
-    # TODO: Stream missing entries table
-    value = orjson.loads(orjson.dumps(tuple(records_gen)))
-    assert isinstance(value, list), f"{type(value) = }"
-    return value
+    return await stream_template(
+        "admin_edit_entries_select_entry.html.jinja",
+        entry_records=records_gen,
+    )
+
+
+@app.post(
+    EditEntryType.CHECK_INS.value,
+    endpoint="admin_edit_entries_check_ins_post",
+)
+@app.post(
+    EditEntryType.CHECKOUTS.value,
+    endpoint="admin_edit_entries_checkouts_post",
+)
+@active_session_required
+async def handle_admin_edit_entries_type_post() -> (
+    tuple[AsyncIterator[str], int] | WerkzeugResponse
+):
+    """Handle administrator edit type entries GET request."""
+    multi_dict = await request.form
+    form = multi_dict.to_dict()
+
+    select_data = form.get("select_data")
+
+    source_page = request.full_path.removesuffix("?")
+
+    errors = []
+    if select_data is None:
+        errors.append("Missing <code>select_data</code> field.")
+    if not isinstance(select_data, str):
+        errors.append("<code>select_data</code> field type must be a string.")
+    elif select_data.count("/") != 2:
+        errors.append(
+            "<code>select_data</code> field value must contain exactly two <code>/</code> symbols.",
+        )
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=source_page,
+        )
+
+    assert isinstance(select_data, str)
+    user_id, date, interval_index = select_data.split("/", 2)
+
+    if not user_id.isdecimal():
+        errors.append(
+            "<code>select_data</code> field user id value must be a decimal.",
+        )
+    elif parse_iso_date(date) is None:
+        errors.append(
+            "<code>select_data</code> field date value must be an ISO date.",
+        )
+    if not interval_index.isdecimal():
+        errors.append(
+            "<code>select_data</code> field interval index value must be a decimal.",
+        )
+
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=request.full_path.removesuffix("?"),
+        )
+
+    parsed_user_id = int(user_id)
+    parsed_date = dt.date.fromisoformat(date)
+    parsed_interval_index = int(interval_index)
+
+    return app.redirect(
+        f"{source_page}/{parsed_user_id}/{parsed_date}/{parsed_interval_index}",
+    )
+
+
+@app.get(
+    f"{EditEntryType.CHECK_INS.value}/<int:user_id>/<date:date>/<int:interval_index>",
+)
+@app.get(
+    f"{EditEntryType.CHECKOUTS.value}/<int:user_id>/<date:date>/<int:interval_index>",
+)
+@active_session_required
+async def handle_admin_edit_entries_resolve_entry_get(
+    user_id: int,
+    date: dt.date,
+    interval_index: int,
+) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
+    """Handle administrator resolve entry GET request."""
+    calendar_db = APP_DATA["calendar"]
+    user_db = APP_DATA["user"]
+
+    user_calendar = calendar_db.get(user_id)
+
+    entry_type = get_edit_entry_type_from_full_path(request.full_path)
+
+    if user_calendar is None:
+        return await get_exception_page(
+            404,  # not found
+            "Not Found",
+            "User calendar not found.",
+            return_link=entry_type.value,
+        )
+
+    user = user_db[user_id]
+
+    interval_timestamps = user_calendar.get_interval_data(date, interval_index)
+
+    if interval_timestamps is None:
+        return await get_exception_page(
+            404,  # not found
+            "Not Found",
+            "Entry interval not found.",
+            return_link=entry_type.value,
+        )
+
+    start_timestamp, end_timestamp = interval_timestamps
+
+    return await stream_template(
+        "admin_configure_entry.html.jinja",
+        # error_message="Error!",
+        creating=False,
+        firstname=user.firstname,
+        lastname=user.lastname,
+        date=date,
+        # date_min=date_min,
+        # date_max=date_max,
+        date_disabled=True,
+        start_time_disabled=(
+            start_timestamp.type_ == database_bridge.StampType.CHECK_IN
+        ),
+        start_time=start_timestamp.time,
+        end_time_disabled=(
+            end_timestamp.type_ == database_bridge.StampType.CHECKOUT
+        ),
+        end_time=end_timestamp.time,
+        return_link=entry_type.value,
+    )
+
+
+@app.post(
+    f"{EditEntryType.CHECK_INS.value}/<int:user_id>/<date:date>/<int:interval_index>",
+)
+@app.post(
+    f"{EditEntryType.CHECKOUTS.value}/<int:user_id>/<date:date>/<int:interval_index>",
+)
+@active_session_required
+async def handle_admin_edit_entries_resolve_entry_post(
+    user_id: int,
+    date: dt.date,
+    interval_index: int,
+) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
+    """Handle administrator resolve entry POST request."""
+    calendar_db = APP_DATA["calendar"]
+
+    user_calendar = calendar_db.get(user_id)
+
+    entry_type = get_edit_entry_type_from_full_path(request.full_path)
+
+    if user_calendar is None:
+        return await get_exception_page(
+            404,  # not found
+            "Not Found",
+            "User calendar not found.",
+            return_link=entry_type.value,
+        )
+
+    multi_dict = await request.form
+    form = multi_dict.to_dict()
+
+    start_time = form.get("start_time")
+    end_time = form.get("end_time")
+    permanently_delete = form.get("permanently_delete") is not None
+
+    update_start = entry_type == EditEntryType.CHECK_INS
+
+    errors = []
+    if update_start:
+        if not start_time:
+            errors.append("Missing <code>start_time</code> field.")
+        elif not isinstance(start_time, str):
+            errors.append(
+                "<code>start_time</code> field type must be a string.",
+            )
+        elif parse_iso_time(start_time) is None:
+            errors.append(
+                "<code>start_time</code> field type must be an ISO time.",
+            )
+    else:
+        if not end_time:
+            errors.append("Missing <code>end_time</code> field.")
+        elif not isinstance(end_time, str):
+            errors.append(
+                "<code>end_time</code> field type must be a string.",
+            )
+        elif parse_iso_time(end_time) is None:
+            errors.append(
+                "<code>end_time</code> field type must be an ISO time.",
+            )
+
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=request.full_path.removesuffix("?"),
+        )
+
+    if update_start:
+        assert isinstance(start_time, str)
+        new_time = dt.time.fromisoformat(start_time)
+    else:
+        assert isinstance(end_time, str)
+        new_time = dt.time.fromisoformat(end_time)
+
+    index = interval_index * 2 + update_start
+
+    # user_calendar.replace_timestamp(date, index, new_time)
+    return {
+        "date": date,
+        "index": index,
+        "new_time": new_time.isoformat(),
+        "permanently_delete": permanently_delete,
+    }
 
 
 @app.get("/admin/edit-entries/create-entry/select-user")
@@ -1051,7 +1302,7 @@ async def handle_admin_edit_entries_type_get() -> (
 async def handle_admin_edit_entries_new_entry_select_user_get() -> (
     AsyncIterator[str]
 ):
-    """Handle administrator edit checkout new entry select user GET request."""
+    """Handle administrator create new entry select user GET request."""
     user_db = APP_DATA["user"]
 
     return await stream_template(
@@ -1072,7 +1323,9 @@ async def handle_admin_edit_entries_new_entry_select_user_post() -> (
     user_id = form.get("user_id")
 
     errors = []
-    if not isinstance(user_id, str):
+    if user_id is None:
+        errors.append("Missing <code>user_id</code> field.")
+    elif not isinstance(user_id, str):
         errors.append("<code>user_id</code> field type must be a string.")
     elif not user_id.isdecimal():
         errors.append(
@@ -1098,7 +1351,8 @@ async def handle_admin_edit_entries_new_entry_user_get(
     user_id: int,
 ) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
     """Handle administrator edit entries new entry user GET request."""
-    user = APP_DATA["user"].get(user_id)
+    user_db = APP_DATA["user"]
+    user = user_db.get(user_id)
 
     return_link = "/admin/edit-entries/create-entry/select-user"
 
