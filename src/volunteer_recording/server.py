@@ -1279,6 +1279,7 @@ async def handle_admin_edit_entries_resolve_entry_post(
 ) -> tuple[AsyncIterator[str], int] | AsyncIterator[str] | WerkzeugResponse:
     """Handle administrator resolve entry POST request."""
     calendar_db = APP_DATA["calendar"]
+    unresolved_cache = APP_DATA["unresolved_cache"]
 
     user_calendar = calendar_db.get(user_id)
 
@@ -1360,7 +1361,15 @@ async def handle_admin_edit_entries_resolve_entry_post(
         )
 
     if permanently_delete:
-        raise NotImplementedError("permanently_delete")
+        user_calendar.delete_interval(date, interval_index)
+        unresolved_cache.resolve_event(stamp_type, user_id, date)
+
+        return await stream_template(
+            "success.html.jinja",
+            message="Successfully deleted specified interval.",
+            return_text="Return to edit entries panel",
+            return_link="/admin/edit-entries",
+        )
 
     if updating_checkout:
         assert isinstance(end_time, str)
@@ -1376,8 +1385,6 @@ async def handle_admin_edit_entries_resolve_entry_post(
         return app.redirect(f"{return_link}?too_early=1")
     if new_time >= next_time:
         return app.redirect(f"{return_link}?too_late=1")
-
-    unresolved_cache = APP_DATA["unresolved_cache"]
 
     user_calendar.replace_timestamp(date, index, new_time)
     unresolved_cache.resolve_event(stamp_type, user_id, date)

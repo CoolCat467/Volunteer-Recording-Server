@@ -608,6 +608,32 @@ class Calendar:
 
         day[index] = Timestamp(new_stamp, new_time)
 
+    def delete_interval(
+        self,
+        date: dt.date,
+        interval_index: int,
+    ) -> None:
+        """Delete a specified interval."""
+        if date not in self.days:
+            raise KeyError(f"{date = } not recorded")
+        day = self.days[date]
+
+        index = self.interval_index_to_day_index(interval_index)
+        if index < 0 or index + 1 >= len(day):
+            raise ValueError("interval index out of range")
+
+        assert day[index].type_ in (
+            StampType.CHECK_IN,
+            StampType.AUTO_CHECK_IN,
+        )
+        assert day[index + 1].type_ in (
+            StampType.CHECKOUT,
+            StampType.AUTO_CHECKOUT,
+        )
+
+        del day[index + 1]
+        del day[index]
+
 
 class CalendarDatabase(Database[Calendar]):
     """Database of calendar records."""
