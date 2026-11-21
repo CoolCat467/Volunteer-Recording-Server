@@ -1166,6 +1166,15 @@ def generate_admin_edit_entries_select_entry_get() -> str:
         value=htmlgen.jinja_expression("select_data"),
     )
 
+    ##time_type = htmlgen.jinja_if_block(
+    ##    {
+    ##        "editing_check_ins": "Checkout",
+    ##        "": "Check-in",
+    ##    },
+    ##    block=False,
+    ##)
+    ##datetime_header = f"{time_type} "
+
     select_entry_table = htmlgen.jinja_table(
         None,
         ("First Name", "Last Name", "Date/Time", "Select"),
@@ -1209,9 +1218,17 @@ def generate_admin_edit_entries_select_entry_get() -> str:
 
     html = htmlgen.form("select_entry", form_content)
 
+    stamp_type = htmlgen.jinja_if_block(
+        {
+            "editing_check_ins": "Check-in",
+            "": "Checkout",
+        },
+        block=False,
+    )
+
     return template_admin_return_signout_footer(
         html,
-        title="Select Unresolved Entry",
+        title=f"Select Unresolved {stamp_type} Entry",
     )
 
 
@@ -1228,6 +1245,18 @@ def generate_admin_configure_entry_get() -> str:
     error_message = htmlgen.jinja_if_block(
         {
             "error_message": error_message_content,
+        },
+    )
+
+    help_message_content = htmlgen.wrap_tag(
+        "p",
+        htmlgen.jinja_expression("help_message"),
+        block=False,
+    )
+
+    help_message = htmlgen.jinja_if_block(
+        {
+            "help_message": help_message_content,
         },
     )
 
@@ -1426,6 +1455,7 @@ def generate_admin_configure_entry_get() -> str:
         "\n".join(
             (
                 entry_information_table,
+                help_message,
                 htmlgen.tag("br"),
                 htmlgen.jinja_super_block(),
                 return_button,

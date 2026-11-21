@@ -128,7 +128,7 @@ class DateConverter(BaseConverter):
 
 def datetime_now_tomorrow() -> dt.datetime:
     """Return datetime of one day from now."""
-    return dt.datetime.now(dt.UTC) + dt.timedelta(days=1)
+    return dt.datetime.now() + dt.timedelta(days=1)
 
 
 @dataclass(slots=True, frozen=True)
@@ -209,6 +209,25 @@ class UnresolvedStampsCache:
     ) -> Iterable[tuple[int, dt.date]]:
         """Return a list of unresolved (user_id, date) tuples."""
         return self.events.get(stamp_type, ())
+
+    def resolve_event(
+        self,
+        stamp_type: database_bridge.StampType,
+        user_id: int,
+        date: dt.date,
+    ) -> None:
+        """Resolve an event."""
+        events = self.events.get(stamp_type)
+        if not events:
+            return
+
+        for index, (event_user_id, event_date) in enumerate(events):
+            if user_id != event_user_id:
+                continue
+            if date != event_date:
+                continue
+            del events[index]
+            break
 
 
 class AppData(TypedDict):
@@ -697,7 +716,7 @@ def user_add_timestamp(
 
     event = user_calendar.add_timestamp(
         type_,
-        dt.datetime.now(dt.UTC),
+        dt.datetime.now(),
     )
     if event is not None:
         unresolved_cache.add_event(user_id, event)
@@ -999,6 +1018,7 @@ def yield_unresolved_event_data(
                 non_automatic_time = start.time
             else:
                 continue
+
             non_automatic_datetime = dt.datetime.combine(
                 date,
                 non_automatic_time,
@@ -1073,6 +1093,7 @@ async def handle_admin_edit_entries_type_get() -> (
 
     return await stream_template(
         "admin_edit_entries_select_entry.html.jinja",
+        editing_check_ins=entry_type == EditEntryType.CHECK_INS,
         entry_records=records_gen,
     )
 
@@ -1166,6 +1187,7 @@ async def handle_admin_edit_entries_resolve_entry_get(
     user_calendar = calendar_db.get(user_id)
 
     entry_type = get_edit_entry_type_from_full_path(request.full_path)
+    stamp_type = get_auto_stamp_type_from_entry_type(entry_type)
 
     if user_calendar is None:
         return await get_exception_page(
@@ -1177,9 +1199,17 @@ async def handle_admin_edit_entries_resolve_entry_get(
 
     user = user_db[user_id]
 
-    interval_timestamps = user_calendar.get_interval_data(date, interval_index)
+    updating_checkout = entry_type == EditEntryType.CHECKOUTS
 
-    if interval_timestamps is None:
+    index = user_calendar.interval_index_to_day_index(
+        interval_index,
+        updating_checkout,
+    )
+
+    interval_timestamps = user_calendar.get_interval_data(date, interval_index)
+    timestamp = user_calendar.get_timestamp(date, index)
+
+    if interval_timestamps is None or timestamp is None:
         return await get_exception_page(
             404,  # not found
             "Not Found",
@@ -1187,11 +1217,35 @@ async def handle_admin_edit_entries_resolve_entry_get(
             return_link=entry_type.value,
         )
 
+    if timestamp.type_ != stamp_type:
+        return await get_exception_page(
+            403,  # forbidden
+            "Forbidden",
+            "Specified timestamp is already resolved.",
+            return_link=entry_type.value,
+        )
+
+    args = request.args
+
+    too_early = args.get("too_early") is not None
+    too_late = args.get("too_late") is not None
+
     start_timestamp, end_timestamp = interval_timestamps
+
+    prior_time = user_calendar.get_prior_timestamp_time(date, index)
+    next_time = user_calendar.get_next_timestamp_time(date, index)
+
+    error_messages = []
+    if too_early:
+        error_messages.append("Previously entered new time was too early.")
+    if too_late:
+        error_messages.append("Previously entered new time was too late.")
+    error_message = "<br>".join(error_messages)
 
     return await stream_template(
         "admin_configure_entry.html.jinja",
-        # error_message="Error!",
+        error_message=error_message,
+        help_message=f"New time should be after {prior_time} and before {next_time}",
         creating=False,
         firstname=user.firstname,
         lastname=user.lastname,
@@ -1222,19 +1276,44 @@ async def handle_admin_edit_entries_resolve_entry_post(
     user_id: int,
     date: dt.date,
     interval_index: int,
-) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
+) -> tuple[AsyncIterator[str], int] | AsyncIterator[str] | WerkzeugResponse:
     """Handle administrator resolve entry POST request."""
     calendar_db = APP_DATA["calendar"]
 
     user_calendar = calendar_db.get(user_id)
 
     entry_type = get_edit_entry_type_from_full_path(request.full_path)
+    stamp_type = get_auto_stamp_type_from_entry_type(entry_type)
 
     if user_calendar is None:
         return await get_exception_page(
             404,  # not found
             "Not Found",
             "User calendar not found.",
+            return_link=entry_type.value,
+        )
+
+    updating_checkout = entry_type == EditEntryType.CHECKOUTS
+
+    index = user_calendar.interval_index_to_day_index(
+        interval_index,
+        updating_checkout,
+    )
+    timestamp = user_calendar.get_timestamp(date, index)
+
+    if timestamp is None:
+        return await get_exception_page(
+            404,  # not found
+            "Not Found",
+            "Specified timestamp not found.",
+            return_link=entry_type.value,
+        )
+
+    if timestamp.type_ != stamp_type:
+        return await get_exception_page(
+            403,  # forbidden
+            "Forbidden",
+            "Specified timestamp is already resolved.",
             return_link=entry_type.value,
         )
 
@@ -1245,56 +1324,70 @@ async def handle_admin_edit_entries_resolve_entry_post(
     end_time = form.get("end_time")
     permanently_delete = form.get("permanently_delete") is not None
 
-    update_start = entry_type == EditEntryType.CHECK_INS
-
     errors = []
-    if update_start:
-        if not start_time:
-            errors.append("Missing <code>start_time</code> field.")
-        elif not isinstance(start_time, str):
-            errors.append(
-                "<code>start_time</code> field type must be a string.",
-            )
-        elif parse_iso_time(start_time) is None:
-            errors.append(
-                "<code>start_time</code> field type must be an ISO time.",
-            )
-    else:
-        if not end_time:
-            errors.append("Missing <code>end_time</code> field.")
-        elif not isinstance(end_time, str):
-            errors.append(
-                "<code>end_time</code> field type must be a string.",
-            )
-        elif parse_iso_time(end_time) is None:
-            errors.append(
-                "<code>end_time</code> field type must be an ISO time.",
-            )
+    if not permanently_delete:
+        if updating_checkout:
+            if not end_time:
+                errors.append("Missing <code>end_time</code> field.")
+            elif not isinstance(end_time, str):
+                errors.append(
+                    "<code>end_time</code> field type must be a string.",
+                )
+            elif parse_iso_time(end_time) is None:
+                errors.append(
+                    "<code>end_time</code> field type must be an ISO time.",
+                )
+        else:
+            if not start_time:
+                errors.append("Missing <code>start_time</code> field.")
+            elif not isinstance(start_time, str):
+                errors.append(
+                    "<code>start_time</code> field type must be a string.",
+                )
+            elif parse_iso_time(start_time) is None:
+                errors.append(
+                    "<code>start_time</code> field type must be an ISO time.",
+                )
+
+    return_link = request.full_path.rsplit("?", 1)[0]
 
     if errors:
         return await get_exception_page(
             400,  # bad request
             "Bad Request",
             "\n<br>\n".join(errors),
-            return_link=request.full_path.removesuffix("?"),
+            return_link=return_link,
         )
 
-    if update_start:
-        assert isinstance(start_time, str)
-        new_time = dt.time.fromisoformat(start_time)
-    else:
+    if permanently_delete:
+        raise NotImplementedError("permanently_delete")
+
+    if updating_checkout:
         assert isinstance(end_time, str)
         new_time = dt.time.fromisoformat(end_time)
+    else:
+        assert isinstance(start_time, str)
+        new_time = dt.time.fromisoformat(start_time)
 
-    index = interval_index * 2 + update_start
+    prior_time = user_calendar.get_prior_timestamp_time(date, index)
+    next_time = user_calendar.get_next_timestamp_time(date, index)
 
-    # user_calendar.replace_timestamp(date, index, new_time)
-    return {
-        "date": date,
-        "index": index,
-        "new_time": new_time.isoformat(),
-        "permanently_delete": permanently_delete,
-    }
+    if new_time <= prior_time:
+        return app.redirect(f"{return_link}?too_early=1")
+    if new_time >= next_time:
+        return app.redirect(f"{return_link}?too_late=1")
+
+    unresolved_cache = APP_DATA["unresolved_cache"]
+
+    user_calendar.replace_timestamp(date, index, new_time)
+    unresolved_cache.resolve_event(stamp_type, user_id, date)
+
+    return await stream_template(
+        "success.html.jinja",
+        message="Entry resolved successfully!",
+        return_text="Return to edit entries panel",
+        return_link="/admin/edit-entries",
+    )
 
 
 @app.get("/admin/edit-entries/create-entry/select-user")
@@ -1371,6 +1464,7 @@ async def handle_admin_edit_entries_new_entry_user_get(
     return await stream_template(
         "admin_configure_entry.html.jinja",
         # error_message="Error!",
+        # help_message="Help message",
         creating=True,
         firstname=user.firstname,
         lastname=user.lastname,
@@ -1477,6 +1571,7 @@ async def handle_admin_edit_entries_new_entry_user_post(
         return await stream_template(
             "admin_configure_entry.html.jinja",
             error_message=bad_interval_reason.value,
+            # help_message="help message",
             creating=True,
             firstname=user.firstname,
             lastname=user.lastname,
@@ -1727,12 +1822,14 @@ async def handle_admin_edit_user_post(
                 403,  # forbidden
                 "Forbidden",
                 SELF_REVOKE_ADMIN_FORBIDDEN_MESSAGE,
+                return_link=source_page,
             )
         if retired:
             return await get_exception_page(
                 403,  # forbidden
                 "Forbidden",
                 SELF_RETIRE_FORBIDDEN_MESSAGE,
+                return_link=source_page,
             )
 
     modify_user(
@@ -1743,7 +1840,7 @@ async def handle_admin_edit_user_post(
         code=numeric_code,
         retired=retired,
         # If granting admin, will handle setting admin with
-        # grant_admin_privileges later. Otherwise, don't change it.
+        # grant_admin_privileges later, don't change it.
         is_admin=False if revoke_admin else user.is_admin,
     )
 

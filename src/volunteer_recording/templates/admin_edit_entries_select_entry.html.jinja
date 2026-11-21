@@ -1,5 +1,5 @@
 {% extends "admin_return_signout.html.jinja" %}
-{% block title scoped %}Select Unresolved Entry{% endblock title %}
+{% block title scoped %}Select Unresolved {% if editing_check_ins %}Check-in{% else %}Checkout{% endif %} Entry{% endblock title %}
 {% block body scoped %}
 <form id="select_entry" name="select_entry" method="post">
   <table class="user-table center">

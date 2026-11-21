@@ -32,6 +32,9 @@
       </td>
     </tr>
   </table>
+  {% if help_message %}
+  <p>{{ help_message }}</p>
+  {% endif %}
   <br>
   {{ super() -}}
   <a href="{{ return_link }}" class="submit_button">Return to {% if creating %}creat{% else %}resolv{% endif %}e entry panel without saving</a>

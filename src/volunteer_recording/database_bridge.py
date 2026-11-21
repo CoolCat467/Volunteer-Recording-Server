@@ -357,6 +357,52 @@ class Calendar:
         self._insert_timestamp(StampType.CHECK_IN, date, start_time)
         self._insert_timestamp(StampType.CHECKOUT, date, end_time)
 
+    def get_prior_timestamp_time(
+        self,
+        date: dt.date,
+        index: int,
+    ) -> dt.time:
+        """Return the time of the event before the given index on the specified day."""
+        if date not in self.days:
+            return dt.time()
+        day = self.days[date]
+
+        if index - 1 >= 0:
+            return day[index - 1].time
+        return dt.time()
+
+    @staticmethod
+    def _get_end_time(date: dt.date) -> dt.time:
+        """Return end time cutoff for a given day."""
+        if date == dt.date.today():
+            return dt.datetime.now().time().replace(microsecond=0)
+        return dt.time(23, 59, 59)
+
+    def get_next_timestamp_time(
+        self,
+        date: dt.date,
+        index: int,
+    ) -> dt.time:
+        """Return the time of the event before the given index on the specified day."""
+        if date not in self.days:
+            return self._get_end_time(date)
+        day = self.days[date]
+
+        if index + 1 < len(day):
+            return day[index + 1].time
+        return self._get_end_time(date)
+
+    def get_last_timestamp_time(
+        self,
+        date: dt.date,
+    ) -> dt.time | None:
+        """Return the time of the last timestamp for a given day or None if there are no recorded timestamps."""
+        day = self.days.get(date)
+        if day is None:
+            return None
+
+        return self.get_prior_timestamp_time(date, len(day))
+
     def add_timestamp(
         self,
         type_: StampType,
@@ -377,18 +423,24 @@ class Calendar:
             else:
                 events = self._get_event_counts_including(date, type_)
 
+            last_time = self.get_last_timestamp_time(date)
+            if last_time is None:
+                prior_time = dt.time()
+            else:
+                prior_time = time_add_seconds(last_time, 1)
+
             if type_ == StampType.CHECKOUT and events.needs_check_in():
                 self._append_timestamp(
                     StampType.AUTO_CHECK_IN,
                     date,
-                    (datetime - dt.timedelta(minutes=1)).time(),
+                    prior_time,
                 )
                 auto_event = date, StampType.AUTO_CHECK_IN
             elif type_ == StampType.CHECK_IN and events.needs_checkout():
                 self._append_timestamp(
                     StampType.AUTO_CHECKOUT,
                     date,
-                    (datetime - dt.timedelta(minutes=1)).time(),
+                    prior_time,
                 )
                 auto_event = date, StampType.AUTO_CHECKOUT
 
@@ -424,20 +476,24 @@ class Calendar:
                     StampType.CHECK_IN,
                     StampType.AUTO_CHECK_IN,
                 ):
-                    raise RuntimeError("Corrupted time interval")
+                    raise RuntimeError(
+                        f"Corrupted time interval {timestamp = }",
+                    )
                 start = timestamp
             else:
                 if timestamp.type_ not in (
                     StampType.CHECKOUT,
                     StampType.AUTO_CHECKOUT,
                 ):
-                    raise RuntimeError("Corrupted time interval")
+                    raise RuntimeError(
+                        f"Corrupted time interval {timestamp = }",
+                    )
                 yield (start, timestamp)
         if len(timestamps) % 2 != 0:
             # missing end entry that should have been added by
             # end_of_day_check_missing_stamp, presumably the current
             # date is today and it hasn't run yet.
-            end = Timestamp(StampType.AUTO_CHECKOUT, dt.time(23, 59, 59))
+            end = Timestamp(StampType.AUTO_CHECKOUT, self._get_end_time(date))
             yield (start, end)
 
     def get_interval_data(
@@ -458,6 +514,14 @@ class Calendar:
         """Yield (start time, end time) tuples for the given day."""
         for start, end in self.yield_interval_data(date):
             yield (start.time, end.time)
+
+    @staticmethod
+    def interval_index_to_day_index(
+        interval_index: int,
+        is_checkout: bool,
+    ) -> int:
+        """Return day index from interval index and if you want the checkout or check-in timestamp."""
+        return interval_index * 2 + is_checkout
 
     def yield_automatic_locations(
         self,
@@ -527,17 +591,18 @@ class Calendar:
         elif old_stamp == StampType.AUTO_CHECKOUT:
             new_stamp = StampType.CHECKOUT
 
-        prior_time = dt.time()
-        if index - 1 > 0:
-            prior_time = day[index - 1].time
+        prior_time = self.get_prior_timestamp_time(date, index)
+        next_time = self.get_next_timestamp_time(date, index)
 
         if prior_time > new_time:
             raise ValueError(
                 "new timestamp should be more than previous timestamp",
             )
 
-        if new_time > old.time:
-            raise ValueError("new timestamp should be less than old timestamp")
+        if new_time > next_time:
+            raise ValueError(
+                "new timestamp should be less than next timestamp",
+            )
 
         day[index] = Timestamp(new_stamp, new_time)
 
