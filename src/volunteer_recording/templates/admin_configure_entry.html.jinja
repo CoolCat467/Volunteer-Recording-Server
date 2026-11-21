@@ -24,11 +24,11 @@
     <tr>
       <td>
         <label for="start_time_field">Check-in Time</label>
-        <input {% if start_time_disabled %}disabled="true" {% else %}required="true" {% endif %}id="start_time_field" type="time" name="start_time" autocomplete="off" minlength="2" maxlength="20" size="30" value="{{ start_time }}">
+        <input {% if start_time_disabled %}disabled="true" {% else %}required="true" {% endif %}id="start_time_field" type="time" name="start_time" autocomplete="off" step="1" value="{{ start_time }}">
       </td>
       <td>
         <label for="end_time_field">Checkout Time</label>
-        <input {% if end_time_disabled %}disabled="true" {% else %}required="true" {% endif %}id="end_time_field" type="time" name="end_time" autocomplete="off" minlength="2" maxlength="20" size="30" value="{{ end_time }}">
+        <input {% if end_time_disabled %}disabled="true" {% else %}required="true" {% endif %}id="end_time_field" type="time" name="end_time" autocomplete="off" step="1" value="{{ end_time }}">
       </td>
     </tr>
   </table>
