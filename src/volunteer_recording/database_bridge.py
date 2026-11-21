@@ -618,7 +618,7 @@ class Calendar:
             raise KeyError(f"{date = } not recorded")
         day = self.days[date]
 
-        index = self.interval_index_to_day_index(interval_index)
+        index = self.interval_index_to_day_index(interval_index, False)
         if index < 0 or index + 1 >= len(day):
             raise ValueError("interval index out of range")
 
