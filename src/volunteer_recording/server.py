@@ -99,6 +99,7 @@ MAIN_CONFIG: Final = CONFIG_PATH / "config.toml"
 USER_DATA: Final = DATA_PATH / "user.json"
 CALENDAR_DATA: Final = DATA_PATH / "calendar.json"
 PASSWORD_DATA: Final = DATA_PATH / "password.json"
+CATEGORY_DATA: Final = DATA_PATH / "category.json"
 
 load_dotenv()
 PEPPER: Final = getenv("COOKIE_SECRET", "")
@@ -237,6 +238,7 @@ class AppData(TypedDict):
     user: database_bridge.UserDatabase
     calendar: database_bridge.CalendarDatabase
     password: database_bridge.PasswordDatabase
+    category: database_bridge.CategoryDatabase
     session: SessionDatabase
     unresolved_cache: UnresolvedStampsCache
 
@@ -252,6 +254,7 @@ APP_DATA = AppData(
     user=database_bridge.UserDatabase(USER_DATA),
     calendar=database_bridge.CalendarDatabase(CALENDAR_DATA),
     password=database_bridge.PasswordDatabase(PASSWORD_DATA, PEPPER),
+    category=database_bridge.CategoryDatabase(CATEGORY_DATA),
     session=SessionDatabase(),
     unresolved_cache=UnresolvedStampsCache(),
 )
@@ -282,7 +285,7 @@ def get_select_type_from_full_path(
 
 
 @app.get(SelectUserType.CHECK_IN.value, endpoint="check_in_get")
-@app.get(SelectUserType.CHECKOUT.value, endpoint="check_out_get")
+@app.get(SelectUserType.CHECKOUT.value, endpoint="checkout_get")
 @pretty_exception
 async def phone_input_get() -> AsyncIterator[str]:
     """Render the phone input page."""
@@ -300,7 +303,7 @@ async def admin_login_get() -> AsyncIterator[str] | WerkzeugResponse:
 
 
 @app.post(SelectUserType.CHECK_IN.value, endpoint="check_in_post")
-@app.post(SelectUserType.CHECKOUT.value, endpoint="check_out_post")
+@app.post(SelectUserType.CHECKOUT.value, endpoint="checkout_post")
 @app.post(SelectUserType.ADMIN_LOGIN.value, endpoint="admin_login_post")
 @pretty_exception
 async def phone_input_post() -> (
@@ -387,7 +390,7 @@ async def stream_select_user(
 )
 @app.get(
     f"{SelectUserType.CHECKOUT.value}/select-user",
-    endpoint="check_out_select_user_get",
+    endpoint="checkout_select_user_get",
 )
 @app.get(
     f"{SelectUserType.ADMIN_LOGIN.value}/select-user",
@@ -438,7 +441,7 @@ async def select_user_get() -> (
 )
 @app.post(
     f"{SelectUserType.CHECKOUT.value}/select-user",
-    endpoint="check_out_select_user_post",
+    endpoint="checkout_select_user_post",
 )
 @app.post(
     f"{SelectUserType.ADMIN_LOGIN.value}/select-user",
@@ -509,7 +512,7 @@ async def select_user_post() -> (
 )
 @app.get(
     f"{SelectUserType.CHECKOUT.value}/create-user",
-    endpoint="check_out_create_user_get",
+    endpoint="checkout_create_user_get",
 )
 @pretty_exception
 async def create_user_get() -> (
@@ -607,7 +610,7 @@ def create_new_user(
 )
 @app.post(
     f"{SelectUserType.CHECKOUT.value}/create-user",
-    endpoint="check_out_create_user_post",
+    endpoint="checkout_create_user_post",
 )
 @pretty_exception
 async def create_user_post() -> (
@@ -700,7 +703,7 @@ async def create_user_post() -> (
     if select_type == SelectUserType.CHECK_IN:
         return await check_in_user_get(user_id, created_user=True)
     if select_type == SelectUserType.CHECKOUT:
-        return await check_out_user_get(user_id, created_user=True)
+        return await checkout_user_get(user_id, created_user=True)
 
     # Should be unreachable
     raise NotImplementedError(f"{request.endpoint = }")
@@ -709,6 +712,7 @@ async def create_user_post() -> (
 def user_add_timestamp(
     user_id: int,
     type_: database_bridge.StampType = database_bridge.StampType.CHECK_IN,
+    category_id: int = 0,
 ) -> None:
     """Add a timestamp for the given user. User ID must be valid."""
     calendar_db = APP_DATA["calendar"]
@@ -718,6 +722,7 @@ def user_add_timestamp(
     event = user_calendar.add_timestamp(
         type_,
         dt.datetime.now(),
+        category_id,
     )
     if event is not None:
         unresolved_cache.add_event(user_id, event)
@@ -744,17 +749,59 @@ async def check_in_user_get(
     )
 
 
-async def check_out_user_get(
+async def checkout_user_get(
     user_id: int,
     created_user: bool = False,
 ) -> AsyncIterator[str]:
     """Handle user checkout GET request."""
     # User id exists, checked in user_selected_get
+    category_db = APP_DATA["category"]
 
-    # TODO: category, for now just do checkout
+    return await stream_template(
+        "checkout_select_category.html.jinja",
+        category_records=enumerate(category_db),
+    )
+
+
+@app.post(
+    f"{SelectUserType.CHECKOUT.value}/user/<int:user_id>",
+)
+async def checkout_user_post(
+    user_id: int,
+    created_user: bool = False,
+) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
+    """Handle user checkout POST request."""
+    multi_dict = await request.form
+
+    category_id = multi_dict.get("category_id")
+
+    errors = []
+    if not category_id:
+        errors.append("Missing <code>category_id</code> field.")
+    elif not isinstance(category_id, str):
+        errors.append("<code>category_id</code> field type must be a string.")
+    elif not category_id.isdecimal():
+        errors.append(
+            "<code>category_id</code> field value must be a decimal.",
+        )
+
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=request.full_path.removesuffix("?"),
+        )
+
+    assert isinstance(category_id, str)
+    parsed_category_id = int(category_id)
 
     # Add checkout stamp for user
-    user_add_timestamp(user_id, database_bridge.StampType.CHECKOUT)
+    user_add_timestamp(
+        user_id,
+        database_bridge.StampType.CHECKOUT,
+        parsed_category_id,
+    )
 
     message = "Successfully checked out!"
     if created_user:
@@ -800,7 +847,7 @@ async def admin_login_user_get(
 )
 @app.get(
     f"{SelectUserType.CHECKOUT.value}/user/<int:user_id>",
-    endpoint="check_out_user_get",
+    endpoint="checkout_user_get",
 )
 @app.get(
     f"{SelectUserType.ADMIN_LOGIN.value}/user/<int:user_id>",
@@ -827,7 +874,7 @@ async def user_selected_get(
     if select_type == SelectUserType.CHECK_IN:
         return await check_in_user_get(user_id)
     if select_type == SelectUserType.CHECKOUT:
-        return await check_out_user_get(user_id)
+        return await checkout_user_get(user_id)
     if select_type == SelectUserType.ADMIN_LOGIN:
         return await admin_login_user_get(user_id, user.is_admin)
 
@@ -1009,6 +1056,12 @@ async def handle_admin_view_time_interval_get() -> AsyncIterator[str]:
     elif autofill_range_select == "year":
         interval_start_day = today.replace(month=1, day=1)
         interval_end_day = today.replace(month=12, day=31)
+
+    if interval_end_day < interval_start_day:
+        interval_start_day, interval_end_day = (
+            interval_end_day,
+            interval_start_day,
+        )
 
     return await stream_template(
         "admin_view_time_interval.html.jinja",
@@ -2051,7 +2104,12 @@ async def async_run_server(
     serve_partial: partial[Coroutine[Any, Any, None]],
 ) -> None:
     """Call server partial while managing databases."""
-    async with APP_DATA["user"], APP_DATA["calendar"], APP_DATA["password"]:
+    async with (
+        APP_DATA["user"],
+        APP_DATA["calendar"],
+        APP_DATA["password"],
+        APP_DATA["category"],
+    ):
         if len(APP_DATA["user"]) != len(APP_DATA["calendar"]):
             raise RuntimeError(
                 "number of user records does not match number of calendar records",

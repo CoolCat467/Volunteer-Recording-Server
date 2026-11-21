@@ -804,6 +804,43 @@ def generate_create_user_get() -> str:
     )
 
 
+@save_template_as("checkout_select_category")
+def generate_checkout_select_category() -> str:
+    """Generate checkout select category GET page."""
+    back_link = htmlgen.create_link(
+        "/checkout",
+        "Back to select user",
+        class_="submit_button",
+    )
+
+    html = htmlgen.form(
+        "select_category",
+        "\n".join(
+            (
+                htmlgen.jinja_bullet_list(
+                    ("category_id", "category"),
+                    "category_records",
+                    htmlgen.create_button(
+                        htmlgen.jinja_expression("category.title|escape"),
+                        type_="submit",
+                        name="category_id",
+                        value=htmlgen.jinja_expression("category_id"),
+                    ),
+                    "not category.retired",
+                ),
+                htmlgen.tag("br"),
+                htmlgen.jinja_super_block(),
+                back_link,
+            ),
+        ),
+    )
+
+    return template_return_footer(
+        html,
+        title="Select a Category",
+    )
+
+
 @save_template_as("success")
 def generate_success_page() -> str:
     """Generate success response page."""

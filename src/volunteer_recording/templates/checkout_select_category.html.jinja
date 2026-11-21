@@ -1,0 +1,14 @@
+{% extends "return_footer.html.jinja" %}
+{% block title scoped %}Select a Category{% endblock title %}
+{% block body scoped %}
+<form id="select_category" name="select_category" method="post">
+  <ul>
+    {% for category_id, category in category_records if not category.retired %}
+    <li><button type="submit" name="category_id" value="{{ category_id }}">{{ category.title|escape }}</button></li>
+    {% endfor %}
+  </ul>
+  <br>
+  {{ super() -}}
+  <a href="/checkout" class="submit_button">Back to select user</a>
+</form>
+{% endblock body %}

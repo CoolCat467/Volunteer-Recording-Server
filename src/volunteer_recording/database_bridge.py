@@ -135,6 +135,44 @@ class UserDatabase(Database[User]):
         )
 
 
+class SerializedCategoryRecord(TypedDict):
+    """Serialized Category record."""
+
+    title: str
+    retired: NotRequired[bool]
+
+
+@dataclass(slots=True, frozen=True)
+class Category:
+    """Category record."""
+
+    title: str
+    retired: bool = False
+
+    @classmethod
+    def deserialize(cls, dict_: SerializedCategoryRecord) -> Self:
+        """Return new class instance from deserializing dictionary."""
+        return cls(
+            title=dict_["title"],
+            retired=dict_.get("retired", False),
+        )
+
+
+class CategoryDatabase(Database[Category]):
+    """Database of category records."""
+
+    __slots__ = ()
+
+    def deserialize_entry(self, entry: Any) -> Category:  # noqa: D102
+        return Category.deserialize(entry)
+
+    async def load(self) -> None:  # noqa: D102
+        if not await self.path.exists():
+            self.data = [Category("Default Category")]
+            return
+        await super().load()
+
+
 class StampType(IntEnum):
     """Timestamp Types."""
 
@@ -149,6 +187,7 @@ class SerializedTimestampRecord(TypedDict):
 
     type_: int
     time: str
+    category_id: NotRequired[int]
 
 
 @dataclass(slots=True, frozen=True)
@@ -157,6 +196,7 @@ class Timestamp:
 
     type_: StampType
     time: dt.time
+    category_id: int = 0
 
     @classmethod
     def deserialize(cls, dict_: SerializedTimestampRecord) -> Self:
@@ -164,6 +204,7 @@ class Timestamp:
         return cls(
             type_=StampType(dict_["type_"]),
             time=dt.time.fromisoformat(dict_["time"]),
+            category_id=dict_.get("category_id", 0),
         )
 
 
@@ -287,11 +328,12 @@ class Calendar:
         type_: StampType,
         date: dt.date,
         time: dt.time,
+        category_id: int = 0,
     ) -> None:
         """Add timestamp of given type for given date and time."""
         day = self.days.setdefault(date, [])
         day.append(
-            Timestamp(type_, time.replace(microsecond=0)),
+            Timestamp(type_, time.replace(microsecond=0), category_id),
         )
 
     def get_prior_timestamp_time(
@@ -344,6 +386,7 @@ class Calendar:
         self,
         type_: StampType,
         datetime: dt.datetime,
+        category_id: int = 0,
     ) -> tuple[dt.date, StampType] | None:
         """Add timestamp of given time from given datetime."""
         date = datetime.date()
@@ -381,7 +424,7 @@ class Calendar:
                 )
                 auto_event = date, StampType.AUTO_CHECKOUT
 
-        self._append_timestamp(type_, date, time)
+        self._append_timestamp(type_, date, time, category_id)
         return auto_event
 
     def end_of_day_check_missing_stamp(
@@ -457,10 +500,15 @@ class Calendar:
         type_: StampType,
         date: dt.date,
         time: dt.time,
+        category_id: int = 0,
     ) -> None:
         """Insert timestamp of given type for given date and time."""
         day = self.days.setdefault(date, [])
-        new_timestamp = Timestamp(type_, time.replace(microsecond=0))
+        new_timestamp = Timestamp(
+            type_,
+            time.replace(microsecond=0),
+            category_id,
+        )
         # bisect.insort(day, new_timestamp, key=lambda ts: ts.time)
         bisect.insort(
             day,
@@ -577,6 +625,7 @@ class Calendar:
         date: dt.date,
         index: int,
         new_time: dt.time,
+        new_category_id: int | None = None,
     ) -> None:
         """Replace time of a specified timestamp with a new time."""
         if date not in self.days:
@@ -606,7 +655,11 @@ class Calendar:
                 "new timestamp should be less than next timestamp",
             )
 
-        day[index] = Timestamp(new_stamp, new_time)
+        category_id = old.category_id
+        if new_category_id is not None:
+            category_id = new_category_id
+
+        day[index] = Timestamp(new_stamp, new_time, category_id)
 
     def delete_interval(
         self,
