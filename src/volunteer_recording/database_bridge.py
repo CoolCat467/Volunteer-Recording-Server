@@ -294,69 +294,6 @@ class Calendar:
             Timestamp(type_, time.replace(microsecond=0)),
         )
 
-    def _insert_timestamp(
-        self,
-        type_: StampType,
-        date: dt.date,
-        time: dt.time,
-    ) -> None:
-        """Insert timestamp of given type for given date and time."""
-        day = self.days.setdefault(date, [])
-        new_timestamp = Timestamp(type_, time.replace(microsecond=0))
-        bisect.insort(day, new_timestamp, key=lambda ts: ts.time)
-
-    def check_entry_collisions(
-        self,
-        date: dt.date,
-        start_time: dt.time,
-        end_time: dt.time,
-    ) -> BadEntryReason | None:
-        """Return BadEntryReason if an entry collision will happen for given new entry."""
-        if end_time <= start_time:
-            return BadEntryReason.InvalidInterval
-
-        today = dt.date.today()
-        if date > today:
-            # Adding events for the future could cause problems when new
-            # events are added later
-            return BadEntryReason.FutureEvent
-
-        if date == today:
-            now = dt.datetime.now()
-            now_time = now.time()
-            if end_time > now_time:
-                # Again, future could cause problems.
-                return BadEntryReason.FutureEvent
-
-        # Also problems if there is any overlap between existing intervals.
-        for start, end in self.yield_interval_time_data(date):
-            if start_time >= start and end_time <= end:
-                return BadEntryReason.IntervalCollision
-
-        # Went all the way through, then things should be fine.
-        return None
-
-    def insert_manual_entry(
-        self,
-        date: dt.date,
-        start_time: dt.time,
-        end_time: dt.time,
-    ) -> None:
-        """Insert a manual entry. Raises ValueError if check_entry_collisions fails."""
-        if end_time == start_time:
-            end_time = time_add_seconds(end_time, 1)
-
-        bad_interval_reason = self.check_entry_collisions(
-            date,
-            start_time,
-            end_time,
-        )
-        if bad_interval_reason is not None:
-            raise ValueError(bad_interval_reason.value)
-
-        self._insert_timestamp(StampType.CHECK_IN, date, start_time)
-        self._insert_timestamp(StampType.CHECKOUT, date, end_time)
-
     def get_prior_timestamp_time(
         self,
         date: dt.date,
@@ -514,6 +451,71 @@ class Calendar:
         """Yield (start time, end time) tuples for the given day."""
         for start, end in self.yield_interval_data(date):
             yield (start.time, end.time)
+
+    def _insert_timestamp(
+        self,
+        type_: StampType,
+        date: dt.date,
+        time: dt.time,
+    ) -> None:
+        """Insert timestamp of given type for given date and time."""
+        day = self.days.setdefault(date, [])
+        new_timestamp = Timestamp(type_, time.replace(microsecond=0))
+        # bisect.insort(day, new_timestamp, key=lambda ts: ts.time)
+        bisect.insort(
+            day,
+            new_timestamp,
+            key=lambda ts: (
+                ts.time,
+                ts.type_ in (StampType.CHECK_IN, StampType.AUTO_CHECK_IN),
+            ),
+        )
+
+    def check_entry_collisions(
+        self,
+        date: dt.date,
+        start_time: dt.time,
+        end_time: dt.time,
+    ) -> BadEntryReason | None:
+        """Return BadEntryReason if the new entry is invalid or overlaps an existing interval."""
+        if end_time <= start_time:
+            return BadEntryReason.InvalidInterval
+
+        today = dt.date.today()
+        if date > today:
+            # Adding events for the future could cause problems when new
+            # events are added later
+            return BadEntryReason.FutureEvent
+
+        if date == today and end_time > dt.datetime.now().time():
+            # Again, future could cause problems.
+            return BadEntryReason.FutureEvent
+
+        # Also problems if there is any overlap between existing intervals.
+        for start, end in self.yield_interval_time_data(date):
+            if start_time < end and start < end_time:
+                return BadEntryReason.IntervalCollision
+
+        # Went all the way through, then things should be fine.
+        return None
+
+    def insert_manual_entry(
+        self,
+        date: dt.date,
+        start_time: dt.time,
+        end_time: dt.time,
+    ) -> None:
+        """Insert a manual entry. Raises ValueError if the entry is invalid or overlaps."""
+        bad_interval_reason = self.check_entry_collisions(
+            date,
+            start_time,
+            end_time,
+        )
+        if bad_interval_reason is not None:
+            raise ValueError(bad_interval_reason.value)
+
+        self._insert_timestamp(StampType.CHECK_IN, date, start_time)
+        self._insert_timestamp(StampType.CHECKOUT, date, end_time)
 
     @staticmethod
     def interval_index_to_day_index(
