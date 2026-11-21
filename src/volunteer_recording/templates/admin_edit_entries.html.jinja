@@ -5,12 +5,12 @@
   <span>Actions</span>
   <br>
   <ul>
-    {% if unresolved_checkins %}
+    {% if unresolved_check_ins %}
     <li>
-      <a href="/admin/edit-entries/checkins">User forgot to check in</a>
+      <a href="/admin/edit-entries/check-ins">User forgot to check in</a>
       <br>
       <p>
-        {{ unresolved_checkins }} entries to correct
+        {{ unresolved_check_ins }} entries to correct
       </p>
     </li>
     {% endif %}

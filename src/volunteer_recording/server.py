@@ -228,18 +228,20 @@ class SelectUserType(Enum):
     """Select user type."""
 
     CHECK_IN = "/check-in"
-    CHECK_OUT = "/check-out"
+    CHECKOUT = "/checkout"
     ADMIN_LOGIN = "/admin-login"
 
 
-def get_select_type_from_full_path(full_path: str) -> SelectUserType:
+def get_select_type_from_full_path(
+    full_path: str,
+) -> SelectUserType:
     """Return select user type from endpoint name."""
     parts = full_path.removeprefix("/").removesuffix("?").split("/", 1)
     return SelectUserType(f"/{parts[0]}")
 
 
 @app.get(SelectUserType.CHECK_IN.value, endpoint="check_in_get")
-@app.get(SelectUserType.CHECK_OUT.value, endpoint="check_out_get")
+@app.get(SelectUserType.CHECKOUT.value, endpoint="check_out_get")
 @pretty_exception
 async def phone_input_get() -> AsyncIterator[str]:
     """Render the phone input page."""
@@ -257,7 +259,7 @@ async def admin_login_get() -> AsyncIterator[str] | WerkzeugResponse:
 
 
 @app.post(SelectUserType.CHECK_IN.value, endpoint="check_in_post")
-@app.post(SelectUserType.CHECK_OUT.value, endpoint="check_out_post")
+@app.post(SelectUserType.CHECKOUT.value, endpoint="check_out_post")
 @app.post(SelectUserType.ADMIN_LOGIN.value, endpoint="admin_login_post")
 @pretty_exception
 async def phone_input_post() -> (
@@ -343,7 +345,7 @@ async def stream_select_user(
     endpoint="check_in_select_user_get",
 )
 @app.get(
-    f"{SelectUserType.CHECK_OUT.value}/select-user",
+    f"{SelectUserType.CHECKOUT.value}/select-user",
     endpoint="check_out_select_user_get",
 )
 @app.get(
@@ -394,7 +396,7 @@ async def select_user_get() -> (
     endpoint="check_in_select_user_post",
 )
 @app.post(
-    f"{SelectUserType.CHECK_OUT.value}/select-user",
+    f"{SelectUserType.CHECKOUT.value}/select-user",
     endpoint="check_out_select_user_post",
 )
 @app.post(
@@ -465,7 +467,7 @@ async def select_user_post() -> (
     endpoint="check_in_create_user_get",
 )
 @app.get(
-    f"{SelectUserType.CHECK_OUT.value}/create-user",
+    f"{SelectUserType.CHECKOUT.value}/create-user",
     endpoint="check_out_create_user_get",
 )
 @pretty_exception
@@ -563,7 +565,7 @@ def create_new_user(
     endpoint="check_in_create_user_post",
 )
 @app.post(
-    f"{SelectUserType.CHECK_OUT.value}/create-user",
+    f"{SelectUserType.CHECKOUT.value}/create-user",
     endpoint="check_out_create_user_post",
 )
 @pretty_exception
@@ -656,7 +658,7 @@ async def create_user_post() -> (
 
     if select_type == SelectUserType.CHECK_IN:
         return await check_in_user_get(user_id, created_user=True)
-    if select_type == SelectUserType.CHECK_OUT:
+    if select_type == SelectUserType.CHECKOUT:
         return await check_out_user_get(user_id, created_user=True)
 
     # Should be unreachable
@@ -705,12 +707,12 @@ async def check_out_user_get(
     user_id: int,
     created_user: bool = False,
 ) -> AsyncIterator[str]:
-    """Handle user check-out GET request."""
+    """Handle user checkout GET request."""
     # User id exists, checked in user_selected_get
 
     # TODO: category, for now just do checkout
 
-    # Add check-in stamp for user
+    # Add checkout stamp for user
     user_add_timestamp(user_id, database_bridge.StampType.CHECKOUT)
 
     message = "Successfully checked out!"
@@ -756,7 +758,7 @@ async def admin_login_user_get(
     endpoint="check_in_user_get",
 )
 @app.get(
-    f"{SelectUserType.CHECK_OUT.value}/user/<int:user_id>",
+    f"{SelectUserType.CHECKOUT.value}/user/<int:user_id>",
     endpoint="check_out_user_get",
 )
 @app.get(
@@ -781,11 +783,11 @@ async def user_selected_get(
             return_link=source_url,
         )
 
-    if request.endpoint == "check_in_user_get":
+    if select_type == SelectUserType.CHECK_IN:
         return await check_in_user_get(user_id)
-    if request.endpoint == "check_out_user_get":
+    if select_type == SelectUserType.CHECKOUT:
         return await check_out_user_get(user_id)
-    if request.endpoint == "admin_login_user_get":
+    if select_type == SelectUserType.ADMIN_LOGIN:
         return await admin_login_user_get(user_id, user.is_admin)
 
     # Should be unreachable
@@ -942,13 +944,13 @@ async def handle_admin_edit_entries_get() -> AsyncIterator[str]:
     # calendar_db = APP_DATA["calendar"]
     unresolved_cache = APP_DATA["unresolved_cache"]
 
-    unresolved_checkins, unresolved_checkouts = (
+    unresolved_check_ins, unresolved_checkouts = (
         unresolved_cache.get_unresolved_count()
     )
 
     return await stream_template(
         "admin_edit_entries.html.jinja",
-        unresolved_checkins=unresolved_checkins,
+        unresolved_check_ins=unresolved_check_ins,
         unresolved_checkouts=unresolved_checkouts,
     )
 
@@ -978,48 +980,70 @@ def yield_unresolved_event_data(
             yield user_db[user_id], date, non_automatic_time
 
 
-@app.get("/admin/edit-entries/checkins")
-@active_session_required
-async def handle_admin_edit_entries_checkins_get() -> (
-    tuple[AsyncIterator[str], int] | dict[str, object]
-):
-    """Handle administrator edit check-in entries GET request."""
-    unresolved_checkins = yield_unresolved_event_data(
-        database_bridge.StampType.AUTO_CHECK_IN,
-    )
+class EditEntryType(Enum):
+    """Select user type."""
 
-    records_exist, records_gen = iterable_has_values(unresolved_checkins)
+    CHECK_INS = f"/admin/edit-entries{SelectUserType.CHECK_IN.value}s"
+    CHECKOUTS = f"/admin/edit-entries{SelectUserType.CHECKOUT.value}s"
+
+
+def get_edit_entry_type_from_full_path(
+    full_path: str,
+    index: int = 0,
+) -> EditEntryType:
+    """Return select user type from endpoint name."""
+    parts = (
+        full_path.removeprefix("/admin/edit-entries/")
+        .removesuffix("?")
+        .split("/", 1)
+    )
+    return EditEntryType(f"/admin/edit-entries/{parts[0]}")
+
+
+def get_auto_stamp_type_from_entry_type(
+    entry_type: EditEntryType,
+) -> database_bridge.StampType:
+    """Return auto stamp type from edit entry type."""
+    if entry_type == EditEntryType.CHECK_INS:
+        return database_bridge.StampType.AUTO_CHECK_IN
+    if entry_type == EditEntryType.CHECKOUTS:
+        return database_bridge.StampType.AUTO_CHECKOUT
+    raise NotImplementedError(f"{entry_type = }")
+
+
+@app.get(
+    EditEntryType.CHECK_INS.value,
+    endpoint="admin_edit_entries_check_ins_get",
+)
+@app.get(
+    EditEntryType.CHECKOUTS.value,
+    endpoint="admin_edit_entries_checkouts_get",
+)
+@active_session_required
+async def handle_admin_edit_entries_type_get() -> (
+    tuple[AsyncIterator[str], int] | list[dict[str, str | int | bool]]
+):
+    """Handle administrator edit type entries GET request."""
+    entry_type = get_edit_entry_type_from_full_path(request.full_path)
+    stamp_type = get_auto_stamp_type_from_entry_type(entry_type)
+
+    unresolved_check_ins = yield_unresolved_event_data(stamp_type)
+
+    records_exist, records_gen = iterable_has_values(unresolved_check_ins)
 
     if not records_exist:
+        stamp_type_name = stamp_type.name.lower().replace("_", "-")
         return await get_exception_page(
             404,  # not found
             "Not Found",
-            "There are no unresolved check-in entries at this time.",
+            f"There are no {stamp_type_name} entries at this time.",
             return_link="/admin/edit-entries",
         )
 
     # TODO: Stream missing entries table
     value = orjson.loads(orjson.dumps(tuple(records_gen)))
-    assert isinstance(value, dict)
+    assert isinstance(value, list), f"{type(value) = }"
     return value
-
-
-@app.get("/admin/edit-entries/checkouts")
-@active_session_required
-async def handle_admin_edit_entries_checkouts_get() -> tuple[
-    AsyncIterator[str],
-    int,
-]:
-    """Handle administrator edit checkout entries GET request."""
-    # Check that session is still valid
-    user_id = get_user_id_from_session()
-
-    return await get_exception_page(
-        404,  # not found
-        "Not Found",
-        f"You are logged in as {user_id = }<br><i>This page has not been implemented yet™</i>",
-        return_link="/admin/edit-entries",
-    )
 
 
 @app.get("/admin/edit-entries/create-entry/select-user")
@@ -1590,9 +1614,7 @@ def ask_integer(prompt: str | None = None) -> int:
             print("Invalid input, enter an integer.")
 
 
-# types: attr-defined error: "CalendarDatabase" has no attribute "yield_all_automatic_locations"
 def ask_date(select: str = "Current ") -> tuple[int, int, int]:
-    # types:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     """Return year, month, day tuple."""
     if select and not select.endswith(" "):
         select += " "

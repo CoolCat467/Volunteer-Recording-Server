@@ -32,7 +32,7 @@ Main screen
 │ │ Check in button          │ │ -> /check-in
 │ └──────────────────────────┘ |
 │ ┌──────────────────────────┐ │
-│ │ Check out button         │ │ -> /check-out
+│ │ Check out button         │ │ -> /checkout
 │ └──────────────────────────┘ |
 │                              │
 │    Administration login link │ -> /admin-login
@@ -41,7 +41,7 @@ Main screen
 
 Enter last 4 digits of phone number screen
 - /check-in
-- /check-out
+- /checkout
 - /admin-login
 ╭──────────────────────────────────────────────╮
 │ Enter the last 4 digits of your phone number │
@@ -53,14 +53,14 @@ Enter last 4 digits of phone number screen
 ╰──────────────────────────────────────────────╯
 [next action]:
     /check-in -> /check-in/select-user
-    /check-out -> /check-out/select-user
+    /checkout -> /checkout/select-user
     /admin-login -> /admin-login/select-user
 
 
 
 Select user screen
 - /check-in/select-user
-- /check-out/select-user
+- /checkout/select-user
 - /admin-login/select-user
 - /admin/edit-entries/create-entry/select-user
 ╭────────────────────────────────────────────╮
@@ -110,7 +110,7 @@ Volunteer checkout category
 
 Create user
 - /check-in/create-user
-- /check-out/create-user
+- /checkout/create-user
 ╭──────────────────────────────────╮
 │ Please enter your information    │
 │ First name      Last name        │ # remember we got their last 4 phone number from earlier screen
@@ -257,7 +257,7 @@ Admin edit times
 ╰───────────────────────────────╯
 
 
-Admin edit check-in/check-out times
+Admin edit check-in/checkout times
 - /admin/edit-entries/checkins
 - /admin/edit-entries/checkouts [reversed of in-place]
 ╭────────────────────────────────────────────╮

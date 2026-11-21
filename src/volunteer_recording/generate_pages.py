@@ -410,7 +410,7 @@ def generate_error_page() -> str:
     body = htmlgen.contain_in_box(content)
     return template(
         body,
-        title=htmlgen.jinja_expression("page_title"),
+        title=htmlgen.jinja_expression("page_title | escape"),
     )
 
 
@@ -439,23 +439,23 @@ def generate_root() -> str:
     html = "<br>\n".join(
         (
             htmlgen.create_link(
-                "/check-in",
+                server.SelectUserType.CHECK_IN.value,
                 htmlgen.create_button(
                     "Check-in",
                     class_="giga_button submit_button",
                 ),
             ),
             htmlgen.create_link(
-                "/check-out",
+                server.SelectUserType.CHECKOUT.value,
                 htmlgen.create_button(
-                    "Check-out",
+                    "Checkout",
                     class_="giga_button submit_button center",
                 ),
             ),
             htmlgen.wrap_tag(
                 "div",
                 htmlgen.create_link(
-                    "/admin-login",
+                    server.SelectUserType.ADMIN_LOGIN.value,
                     "Administration login",
                 ),
                 class_="text_right",
@@ -1047,22 +1047,22 @@ def template_admin_return_signout_footer(
 @save_template_as("admin_edit_entries")
 def admin_edit_entries_get() -> str:
     """Generate admin edit entries GET page."""
-    unresolved_checkins = htmlgen.jinja_expression("unresolved_checkins")
+    unresolved_check_ins = htmlgen.jinja_expression("unresolved_check_ins")
     correct_check_ins = htmlgen.jinja_if_block(
         {
-            "unresolved_checkins": htmlgen.wrap_tag(
+            "unresolved_check_ins": htmlgen.wrap_tag(
                 "li",
                 "\n".join(
                     (
                         htmlgen.create_link(
-                            "/admin/edit-entries/checkins",
+                            server.EditEntryType.CHECK_INS.value,
                             "User forgot to check in",
                             # class_="submit_button",
                         ),
                         htmlgen.tag("br"),
                         htmlgen.wrap_tag(
                             "p",
-                            f"{unresolved_checkins} entries to correct",
+                            f"{unresolved_check_ins} entries to correct",
                         ),
                     ),
                 ),
@@ -1077,7 +1077,7 @@ def admin_edit_entries_get() -> str:
                 "\n".join(
                     (
                         htmlgen.create_link(
-                            "/admin/edit-entries/checkouts",
+                            server.EditEntryType.CHECKOUTS.value,
                             "User forgot to checkout",
                             # class_="submit_button",
                         ),

@@ -1,5 +1,5 @@
 {% extends "base.html.jinja" %}
-{% block title scoped %}{{ page_title }}{% endblock title %}
+{% block title scoped %}{{ page_title | escape }}{% endblock title %}
 {% block body scoped %}
 <div class="box">
   <p>
