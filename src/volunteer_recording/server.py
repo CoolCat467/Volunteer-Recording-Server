@@ -882,7 +882,7 @@ def active_session_required[**PS, T](
     @wraps(function)
     async def wrapper(*args: PS.args, **kwargs: PS.kwargs) -> T:
         """Try to get user id from session wrapper."""
-        ##        get_user_id_from_session()
+        # get_user_id_from_session()
         return await function(*args, **kwargs)
 
     return wrapper
@@ -982,7 +982,7 @@ async def handle_admin_edit_entries_checkouts_get() -> tuple[
     )
 
 
-@app.get("/admin/edit-entries/new-entry/select-user")
+@app.get("/admin/edit-entries/create-entry/select-user")
 @active_session_required
 async def handle_admin_edit_entries_new_entry_select_user_get() -> (
     AsyncIterator[str]
@@ -996,7 +996,7 @@ async def handle_admin_edit_entries_new_entry_select_user_get() -> (
     )
 
 
-@app.post("/admin/edit-entries/new-entry/select-user")
+@app.post("/admin/edit-entries/create-entry/select-user")
 @active_session_required
 async def handle_admin_edit_entries_new_entry_select_user_post() -> (
     tuple[AsyncIterator[str], int] | WerkzeugResponse
@@ -1036,7 +1036,7 @@ async def handle_admin_edit_entries_new_entry_user_get(
     """Handle administrator edit entries new entry user GET request."""
     user = APP_DATA["user"].get(user_id)
 
-    return_link = "/admin/edit-entries/new-entry/select-user"
+    return_link = "/admin/edit-entries/create-entry/select-user"
 
     if user is None:
         return await get_exception_page(
@@ -1052,12 +1052,14 @@ async def handle_admin_edit_entries_new_entry_user_get(
 
     return await stream_template(
         "admin_configure_entry.html.jinja",
+        # error_message="Error!",
         creating=True,
         firstname=user.firstname,
         lastname=user.lastname,
-        # date=today,
+        date=today,
         # date_min=date_min,
         date_max=today,
+        # date_disabled=True,
         # start_time_disabled=True,
         # start_time=start_time,
         # end_time_disabled=True,
@@ -1070,7 +1072,7 @@ async def handle_admin_edit_entries_new_entry_user_get(
 @active_session_required
 async def handle_admin_edit_entries_new_entry_user_post(
     user_id: int,
-) -> tuple[AsyncIterator[str], int] | dict[str, object]:
+) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
     """Handle administrator edit entries new entry user POST request."""
     user = APP_DATA["user"].get(user_id)
 
@@ -1079,7 +1081,7 @@ async def handle_admin_edit_entries_new_entry_user_post(
             404,  # not found
             "Not Found",
             "User not found.",
-            return_link="/admin/edit-entries/new-entry/select-user",
+            return_link="/admin/edit-entries/create-entry/select-user",
         )
 
     multi_dict = await request.form
@@ -1142,11 +1144,47 @@ async def handle_admin_edit_entries_new_entry_user_post(
     parsed_start_time = dt.time.fromisoformat(start_time)
     parsed_end_time = dt.time.fromisoformat(end_time)
 
-    return {
-        "parsed_date": parsed_date,
-        "parsed_start_time": str(parsed_start_time),
-        "parsed_end_time": str(parsed_end_time),
-    }
+    calendar_db = APP_DATA["calendar"]
+    user_calendar = calendar_db[user_id]
+
+    bad_interval_reason = user_calendar.check_entry_collisions(
+        parsed_date,
+        parsed_start_time,
+        parsed_end_time,
+    )
+    if bad_interval_reason is not None:
+        now = dt.datetime.now()
+        today = now.date()
+
+        return await stream_template(
+            "admin_configure_entry.html.jinja",
+            error_message=bad_interval_reason.value,
+            creating=True,
+            firstname=user.firstname,
+            lastname=user.lastname,
+            date=parsed_date,
+            # date_min=date_min,
+            date_max=today,
+            # date_disabled=True,
+            # start_time_disabled=True,
+            start_time=parsed_start_time,
+            # end_time_disabled=True,
+            end_time=parsed_end_time,
+            return_link="/admin/edit-entries/create-entry/select-user",
+        )
+
+    user_calendar.insert_manual_entry(
+        parsed_date,
+        parsed_start_time,
+        parsed_end_time,
+    )
+
+    return await stream_template(
+        "success.html.jinja",
+        message="New entry created successfully!",
+        return_text="Return to edit entries panel",
+        return_link="/admin/edit-entries",
+    )
 
 
 @app.get("/admin/edit-categories")

@@ -1,6 +1,9 @@
 {% extends "admin_return_signout.html.jinja" %}
 {% block title scoped %}Entry Information{% endblock title %}
 {% block body scoped %}
+{% if error_message %}
+<i class="red-text">{{ error_message }}</i>
+{% endif %}
 <form id="entry_information" name="entry_information" method="post">
   <table>
     <tr>
@@ -14,7 +17,7 @@
     <tr>
       <td>
         <label for="day_field">Day</label>
-        <input {% if date %}disabled="true" {% else %}required="true" {% endif %}{% if date_min %}min="{{ date_min }}" {% endif %}{% if date_max %}max="{{ date_max }}" {% endif %}id="day_field" type="date" name="date" autocomplete="off" minlength="2" maxlength="20" size="30" value="{{ date }}">
+        <input {% if date_disabled %}disabled="true" {% else %}required="true" {% endif %}{% if date_min %}min="{{ date_min }}" {% endif %}{% if date_max %}max="{{ date_max }}" {% endif %}id="day_field" type="date" name="date" autocomplete="off" minlength="2" maxlength="20" size="30" value="{{ date }}">
       </td>
       <td></td>
     </tr>

@@ -25,10 +25,11 @@ __author__ = "CoolCat467"
 __license__ = "GNU General Public License Version 3"
 
 
+import bisect
 import datetime as dt
 from collections import Counter
 from dataclasses import dataclass, field, replace
-from enum import IntEnum, auto
+from enum import Enum, IntEnum, auto
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -220,6 +221,24 @@ class EventCounts(NamedTuple):
         )
 
 
+def time_add_seconds(initial_time: dt.time, seconds: int) -> dt.time:
+    """Return new time after adding given number of seconds to it."""
+    epoch = dt.date(1970, 1, 1)
+    datetime_object = dt.datetime.combine(epoch, initial_time)
+
+    new_datetime = datetime_object + dt.timedelta(seconds=seconds)
+
+    return new_datetime.time()
+
+
+class BadEntryReason(Enum):
+    """Bad entry reason."""
+
+    InvalidInterval = "Start time is after end time."
+    FutureEvent = "Interval would happen in the future."
+    IntervalCollision = "Intersects with an existing interval."
+
+
 @dataclass(slots=True, frozen=True)
 class Calendar:
     """Calendar record."""
@@ -254,7 +273,7 @@ class Calendar:
         timestamps = (*self.yield_timestamp_types(date), extra)
         return EventCounts.from_timestamps(timestamps)
 
-    def _add_timestamp(
+    def _append_timestamp(
         self,
         type_: StampType,
         date: dt.date,
@@ -265,6 +284,69 @@ class Calendar:
         day.append(
             Timestamp(type_, time.replace(microsecond=0)),
         )
+
+    def _insert_timestamp(
+        self,
+        type_: StampType,
+        date: dt.date,
+        time: dt.time,
+    ) -> None:
+        """Insert timestamp of given type for given date and time."""
+        day = self.days.setdefault(date, [])
+        new_timestamp = Timestamp(type_, time.replace(microsecond=0))
+        bisect.insort(day, new_timestamp, key=lambda ts: ts.time)
+
+    def check_entry_collisions(
+        self,
+        date: dt.date,
+        start_time: dt.time,
+        end_time: dt.time,
+    ) -> BadEntryReason | None:
+        """Return BadEntryReason if an entry collision will happen for given new entry."""
+        if end_time <= start_time:
+            return BadEntryReason.InvalidInterval
+
+        today = dt.date.today()
+        if date > today:
+            # Adding events for the future could cause problems when new
+            # events are added later
+            return BadEntryReason.FutureEvent
+
+        if date == today:
+            now = dt.datetime.now()
+            now_time = now.time()
+            if end_time > now_time:
+                # Again, future could cause problems.
+                return BadEntryReason.FutureEvent
+
+        # Also problems if there is any overlap between existing intervals.
+        for start, end in self.yield_interval_data(date):
+            if start_time >= start and end_time <= end:
+                return BadEntryReason.IntervalCollision
+
+        # Went all the way through, then things should be fine.
+        return None
+
+    def insert_manual_entry(
+        self,
+        date: dt.date,
+        start_time: dt.time,
+        end_time: dt.time,
+    ) -> None:
+        """Insert a manual entry. Raises ValueError if check_entry_collisions fails."""
+        if end_time == start_time:
+            end_time = time_add_seconds(end_time, 1)
+
+        bad_interval_reason = self.check_entry_collisions(
+            date,
+            start_time,
+            end_time,
+        )
+        if bad_interval_reason is not None:
+            raise ValueError(bad_interval_reason.value)
+
+        self._insert_timestamp(StampType.CHECK_IN, date, start_time)
+        self._insert_timestamp(StampType.CHECKOUT, date, end_time)
 
     def add_timestamp(
         self,
@@ -287,21 +369,21 @@ class Calendar:
                 events = self._get_event_counts_including(date, type_)
 
             if type_ == StampType.CHECKOUT and events.needs_check_in():
-                self._add_timestamp(
+                self._append_timestamp(
                     StampType.AUTO_CHECK_IN,
                     date,
                     (datetime - dt.timedelta(minutes=1)).time(),
                 )
                 auto_event = date, StampType.AUTO_CHECK_IN
             elif type_ == StampType.CHECK_IN and events.needs_checkout():
-                self._add_timestamp(
+                self._append_timestamp(
                     StampType.AUTO_CHECKOUT,
                     date,
                     (datetime - dt.timedelta(minutes=1)).time(),
                 )
                 auto_event = date, StampType.AUTO_CHECKOUT
 
-        self._add_timestamp(type_, date, time)
+        self._append_timestamp(type_, date, time)
         return auto_event
 
     def end_of_day_check_missing_stamp(
@@ -312,13 +394,41 @@ class Calendar:
         events = self.get_event_counts(date)
 
         if events.needs_checkout():
-            self._add_timestamp(
+            self._append_timestamp(
                 StampType.AUTO_CHECKOUT,
                 date,
                 dt.time(23, 59, 59),
             )
             return date, StampType.AUTO_CHECKOUT
         return None
+
+    def yield_interval_data(
+        self,
+        date: dt.date,
+    ) -> Generator[tuple[dt.time, dt.time]]:
+        """Yield (start time, end time) tuples for the given day."""
+        timestamps = self.days.get(date, ())
+        start: dt.time
+        for index, timestamp in enumerate(timestamps):
+            if not index & 1:
+                if timestamp.type_ not in (
+                    StampType.CHECK_IN,
+                    StampType.AUTO_CHECK_IN,
+                ):
+                    raise RuntimeError("Corrupted time interval")
+                start = timestamp.time
+            else:
+                if timestamp.type_ not in (
+                    StampType.CHECKOUT,
+                    StampType.AUTO_CHECKOUT,
+                ):
+                    raise RuntimeError("Corrupted time interval")
+                yield (start, timestamp.time)
+        if len(timestamps) % 2 != 0:
+            # missing end entry that should have been added by
+            # end_of_day_check_missing_stamp, presumably the current
+            # date is today and it hasn't run yet.
+            yield (start, dt.time(23, 59, 59))
 
     def yield_automatic_locations(
         self,

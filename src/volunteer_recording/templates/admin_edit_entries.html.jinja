@@ -7,7 +7,7 @@
   <ul>
     {% if unresolved_checkins %}
     <li>
-      <a href="/admin/edit-entries/checkins" class="submit_button">User forgot to check in</a>
+      <a href="/admin/edit-entries/checkins">User forgot to check in</a>
       <br>
       <p>
         {{ unresolved_checkins }} entries to correct
@@ -16,7 +16,7 @@
     {% endif %}
     {% if unresolved_checkouts %}
     <li>
-      <a href="/admin/edit-entries/checkouts" class="submit_button">User forgot to checkout</a>
+      <a href="/admin/edit-entries/checkouts">User forgot to checkout</a>
       <br>
       <p>
         {{ unresolved_checkouts }} entries to correct
@@ -24,7 +24,7 @@
     </li>
     {% endif %}
     <li>
-      <a href="/admin/edit-entries/new-entry/select-user" class="submit_button">Create entirely new entry</a>
+      <a href="/admin/edit-entries/create-entry/select-user">Create entirely new entry</a>
     </li>
   </ul>
 </div>

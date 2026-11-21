@@ -1057,7 +1057,7 @@ def admin_edit_entries_get() -> str:
                         htmlgen.create_link(
                             "/admin/edit-entries/checkins",
                             "User forgot to check in",
-                            class_="submit_button",
+                            # class_="submit_button",
                         ),
                         htmlgen.tag("br"),
                         htmlgen.wrap_tag(
@@ -1079,7 +1079,7 @@ def admin_edit_entries_get() -> str:
                         htmlgen.create_link(
                             "/admin/edit-entries/checkouts",
                             "User forgot to checkout",
-                            class_="submit_button",
+                            # class_="submit_button",
                         ),
                         htmlgen.tag("br"),
                         htmlgen.wrap_tag(
@@ -1094,9 +1094,9 @@ def admin_edit_entries_get() -> str:
     create_new_entry = htmlgen.wrap_tag(
         "li",
         htmlgen.create_link(
-            "/admin/edit-entries/new-entry/select-user",
+            "/admin/edit-entries/create-entry/select-user",
             "Create entirely new entry",
-            class_="submit_button",
+            # class_="submit_button",
         ),
     )
 
@@ -1159,6 +1159,19 @@ def generate_admin_edit_entries_select_user_get() -> str:
 @save_template_as("admin_configure_entry")
 def generate_admin_configure_entry_get() -> str:
     """Generate admin configure entry GET page."""
+    error_message_content = htmlgen.wrap_tag(
+        "i",
+        htmlgen.jinja_expression("error_message"),
+        block=False,
+        class_="red-text",
+    )
+
+    error_message = htmlgen.jinja_if_block(
+        {
+            "error_message": error_message_content,
+        },
+    )
+
     firstname = htmlgen.jinja_expression("firstname")
     lastname = htmlgen.jinja_expression("lastname")
     rows = (
@@ -1206,7 +1219,7 @@ def generate_admin_configure_entry_get() -> str:
                         (
                             htmlgen.jinja_if_block(
                                 {
-                                    "date": 'disabled="true" ',
+                                    "date_disabled": 'disabled="true" ',
                                     "": 'required="true" ',
                                 },
                                 block=False,
@@ -1349,7 +1362,7 @@ def generate_admin_configure_entry_get() -> str:
         type_="submit",
     )
 
-    html = htmlgen.form(
+    form = htmlgen.form(
         "entry_information",
         "\n".join(
             (
@@ -1362,6 +1375,8 @@ def generate_admin_configure_entry_get() -> str:
             ),
         ),
     )
+
+    html = f"{error_message}\n{form}"
 
     return template_admin_return_signout_footer(
         html,

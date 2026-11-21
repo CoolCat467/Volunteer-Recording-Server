@@ -62,7 +62,7 @@ Select user screen
 - /check-in/select-user
 - /check-out/select-user
 - /admin-login/select-user
-- /admin/edit-entries/new-entry/select-user
+- /admin/edit-entries/create-entry/select-user
 ╭────────────────────────────────────────────╮
 │ Select your user [or create a new account] │ # or create if not manager signin
 │ ┌───────────────────────────┐              │
@@ -239,17 +239,15 @@ Admin edit times
 - /admin/edit-entries
 ╭───────────────────────────────╮
 │ Actions                       │
-│ ┌─────────────────────────┐   │ # only show if unresolved entries exist
-| | User forgot to check in |   | -> /admin/edit-entries/checkins
-│ └─────────────────────────┘   |
-│ - <value> entries to correct  │
-│ ┌──────────────────────────┐  │ # only show if unresolved entries exist
-| | User forgot to check out |  | -> /admin/edit-entries/checkouts
-│ └──────────────────────────┘  |
-│ - <value> entries to correct  │
-│ ┌───────────────────────────┐ │
-| | Create entirely new entry | | -> /admin/edit-entries/new-entry/select-user
-│ └───────────────────────────┘ |
+│                               │ # only show if unresolved entries exist
+| - User forgot to check in     | -> /admin/edit-entries/checkins
+│   <value> entries to correct  │
+│                               │ # only show if unresolved entries exist
+| - User forgot to check out    | -> /admin/edit-entries/checkouts
+│   <value> entries to correct  │
+│                               │
+| - Create entirely new entry   | -> /admin/edit-entries/create-entry/select-user
+│                               │
 │ ┌────────┐                    │
 | | Return |                    | -> /admin
 │ └────────┘                    |
