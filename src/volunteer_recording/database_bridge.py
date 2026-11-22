@@ -761,6 +761,16 @@ class CalendarDatabase(Database[Calendar]):
                 breakdown[category_id] += duration
             yield user_id, breakdown
 
+    def yield_end_of_day_check_missing_stamp_events(
+        self,
+        date: dt.date,
+    ) -> Generator[tuple[int, tuple[dt.date, StampType]]]:
+        """Yield (user_id, (date, stamp type)) automatic event tuples."""
+        for user_id, calendar in enumerate(self):
+            event = calendar.end_of_day_check_missing_stamp(date)
+            if event is not None:
+                yield user_id, event
+
 
 class PasswordDatabase(MappingDatabase[int, str]):
     """Database of password records."""

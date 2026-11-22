@@ -77,6 +77,7 @@ from werkzeug.routing import BaseConverter, ValidationError
 
 from volunteer_recording import database_bridge
 from volunteer_recording.elapsed import combine_end
+from volunteer_recording.serializable import Serializable
 from volunteer_recording.server_utils import (
     find_ip,
     get_exception_page,
@@ -2458,6 +2459,73 @@ def add_unresolved_events_to_cache() -> None:
         unresolved_cache.add_event(user_id, event)
 
 
+async def write_databases() -> None:
+    """Write all in-memory database contents to file."""
+    async with trio.open_nursery() as nursery:
+        for _key, value in APP_DATA.items():
+            if not isinstance(value, Serializable):
+                continue
+            nursery.start_soon(value.write_file)
+
+
+async def background_write_database(
+    *,
+    task_status: trio.TaskStatus = trio.TASK_STATUS_IGNORED,
+) -> None:
+    """Every hour, write all in-memory database contents to file."""
+    task_status.started()
+    while True:
+        await trio.sleep(60 * 60)
+        print(
+            "Writing in-memory database contents to file. Please do not turn off the power...",
+        )
+        await write_databases()
+        print("Save complete.")
+
+
+def end_of_day_check_missing_stamps(close_date: dt.date) -> int:
+    """Check for missing stamps at the end of the given date."""
+    calendar_db = APP_DATA["calendar"]
+    unresolved_cache = APP_DATA["unresolved_cache"]
+
+    count = 0
+    for (
+        user_id,
+        event,
+    ) in calendar_db.yield_end_of_day_check_missing_stamp_events(close_date):
+        unresolved_cache.add_event(user_id, event)
+        count += 1
+    return count
+
+
+async def background_auto_close_intervals_midnight(
+    *,
+    task_status: trio.TaskStatus = trio.TASK_STATUS_IGNORED,
+) -> None:
+    """At midnight, automatically close all currently open intervals."""
+    task_status.started()
+    while True:
+        now = dt.datetime.now()
+        tomorrow = now + dt.timedelta(days=1)
+        tomorrow_midnight = dt.datetime(
+            tomorrow.year,
+            tomorrow.month,
+            tomorrow.day,
+        )
+
+        close_date = now.date()
+
+        until_tomorrow_midnight = tomorrow_midnight - now
+
+        await trio.sleep(until_tomorrow_midnight.total_seconds())
+
+        print("Checking for end of day missing stamps...")
+        missing_count = end_of_day_check_missing_stamps(close_date)
+        print(f"{missing_count} checkout stamps were missing.")
+
+        await APP_DATA["calendar"].write_file()
+
+
 async def async_run_server(
     serve_partial: partial[Coroutine[Any, Any, None]],
 ) -> None:
@@ -2478,9 +2546,13 @@ async def async_run_server(
                 "admin",
             )
             print("Created admin user with password `admin`")
-        add_unresolved_events_to_cache()
+
         async with trio.open_nursery() as nursery:
             nursery.start_soon(serve_partial)
+            nursery.start_soon(background_write_database)
+            nursery.start_soon(background_auto_close_intervals_midnight)
+
+            add_unresolved_events_to_cache()
 
 
 def run_server(
