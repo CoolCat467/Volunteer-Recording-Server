@@ -51,7 +51,6 @@ from typing import (
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
-import orjson
 import platformdirs
 import trio
 from dotenv import load_dotenv
@@ -1762,12 +1761,59 @@ async def handle_admin_edit_categories_post() -> (
 
 @app.get("/admin/create-category")
 @active_session_required
-async def handle_admin_create_category_get() -> tuple[AsyncIterator[str], int]:
+async def handle_admin_create_category_get() -> AsyncIterator[str]:
     """Handle administrator create category GET request."""
-    return await get_exception_page(
-        400,  # bad request
-        "Bad Request",
-        "TODO: Implement create category",
+    return await stream_template(
+        "admin_edit_category.html.jinja",
+        creating=True,
+        # autofill_title=category.title,
+        # autofill_retired=category.retired,
+    )
+
+
+@app.post("/admin/create-category")
+@active_session_required
+async def handle_admin_create_category_post() -> (
+    tuple[AsyncIterator[str], int] | AsyncIterator[str]
+):
+    """Handle administrator create category POST request."""
+    category_db = APP_DATA["category"]
+
+    multi_dict = await request.form
+
+    title = multi_dict.get("title")
+    retired = multi_dict.get("retired") is not None
+
+    errors = []
+    if title is None:
+        errors.append("Missing <code>title</code> field.")
+    elif not isinstance(title, str):
+        errors.append("<code>title</code> field type must be a string.")
+    elif len(title) < 3:
+        errors.append(
+            "<code>title</code> field value must be at least three characters in length.",
+        )
+
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=request.full_path.removesuffix("?"),
+        )
+
+    assert isinstance(title, str)
+
+    new_category_record = database_bridge.Category(
+        title=title,
+        retired=retired,
+    )
+    category_db.add(new_category_record)
+
+    return await stream_template(
+        "success.html.jinja",
+        message="New category created successfully!",
+        return_text="Return to edit categories panel",
         return_link="/admin/edit-categories",
     )
 
@@ -1776,7 +1822,7 @@ async def handle_admin_create_category_get() -> tuple[AsyncIterator[str], int]:
 @active_session_required
 async def handle_admin_edit_category_get(
     category_id: int,
-) -> tuple[AsyncIterator[str], int] | dict[str, str | bool]:
+) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
     """Handle administrator edit category GET request."""
     category_db = APP_DATA["category"]
 
@@ -1790,9 +1836,68 @@ async def handle_admin_edit_category_get(
             return_link="/admin/edit-categories",
         )
 
-    value = orjson.loads(orjson.dumps(category))
-    assert isinstance(value, dict)
-    return value
+    return await stream_template(
+        "admin_edit_category.html.jinja",
+        autofill_title=category.title,
+        autofill_retired=category.retired,
+    )
+
+
+@app.post("/admin/edit-category/<int:category_id>")
+@active_session_required
+async def handle_admin_edit_category_post(
+    category_id: int,
+) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
+    """Handle administrator edit category POST request."""
+    category_db = APP_DATA["category"]
+
+    category = category_db.get(category_id)
+
+    if category is None:
+        return await get_exception_page(
+            404,  # not found
+            "Not Found",
+            "Specified category not found.",
+            return_link="/admin/edit-categories",
+        )
+
+    multi_dict = await request.form
+
+    title = multi_dict.get("title")
+    retired = multi_dict.get("retired") is not None
+
+    errors = []
+    if title is None:
+        errors.append("Missing <code>title</code> field.")
+    elif not isinstance(title, str):
+        errors.append("<code>title</code> field type must be a string.")
+    elif len(title) < 3:
+        errors.append(
+            "<code>title</code> field value must be at least three characters in length.",
+        )
+
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=request.full_path.removesuffix("?"),
+        )
+
+    assert isinstance(title, str)
+
+    new_category_record = database_bridge.Category(
+        title=title,
+        retired=retired,
+    )
+    category_db[category_id] = new_category_record
+
+    return await stream_template(
+        "success.html.jinja",
+        message="Category modified successfully!",
+        return_text="Return to edit categories panel",
+        return_link="/admin/edit-categories",
+    )
 
 
 @app.get("/admin/edit-user")

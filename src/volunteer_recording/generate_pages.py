@@ -1663,6 +1663,81 @@ def generate_admin_edit_categories_get() -> str:
     )
 
 
+@save_template_as("admin_edit_category")
+def generate_admin_edit_category_get() -> str:
+    """Generate admin edit category GET page."""
+    retired_checkbox = "\n".join(
+        (
+            htmlgen.wrap_tag(
+                "label",
+                "Retired",
+                False,
+                for_="retired_checkbox",
+            ),
+            htmlgen.jinja_checkbox(
+                "autofill_retired",
+                id_="retired_checkbox",
+                name="retired",
+            ),
+        ),
+    )
+
+    row_elements = (
+        htmlgen.input_field(
+            "title",
+            "Title",
+            attrs={
+                "value": htmlgen.jinja_expression("autofill_title|escape"),
+                "required": True,
+                "size": 30,
+            },
+        ),
+        retired_checkbox,
+    )
+
+    input_fields_rows = htmlgen.table_row_elements(
+        row_elements,
+        cell_block=True,
+    )
+
+    back_link = htmlgen.create_link(
+        "/admin/edit-categories",
+        "Return to category list without saving",
+        class_="submit_button",
+    )
+
+    save_title = htmlgen.jinja_if_block(
+        {
+            "creating": "Create new category",
+            "": "Save changes",
+        },
+    )
+
+    submit_button = htmlgen.create_button(
+        save_title,
+        type_="submit",
+    )
+
+    form_content = "\n".join(
+        (
+            htmlgen.wrap_tag("table", input_fields_rows),
+            htmlgen.tag("br"),
+            htmlgen.jinja_super_block(),
+            back_link,
+            submit_button,
+        ),
+    )
+
+    html = htmlgen.form("modify_category", form_content)
+
+    return template_admin_return_signout_footer(
+        html,
+        title="Edit Category",
+        sign_out_text="Sign out without saving",
+        return_admin_panel_text="Return to admin panel without saving",
+    )
+
+
 @save_template_as("admin_select_edit_user")
 def generate_admin_edit_user_get() -> str:
     """Generate admin select edit user from list GET page."""
