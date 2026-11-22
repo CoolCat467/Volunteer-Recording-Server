@@ -25,6 +25,7 @@ __author__ = "CoolCat467"
 __license__ = "GNU General Public License Version 3"
 
 
+import dataclasses
 from abc import abstractmethod
 from collections.abc import (
     Generator,
@@ -41,6 +42,8 @@ import trio
 
 if TYPE_CHECKING:
     from os import PathLike
+
+    from _typeshed import DataclassInstance
 
 
 class Serializable[T](trio.abc.AsyncResource):
@@ -70,13 +73,37 @@ class Serializable[T](trio.abc.AsyncResource):
             exc.add_note(f"{self.path = }")
             raise
 
+    def serialize_dataclass(
+        self,
+        dataclass: DataclassInstance,
+    ) -> dict[str, object]:
+        """Return dict from dataclass non-default field values."""
+        # Purposely not using dataclasses.asdict because it's recursive
+        # and doesn't strip the default keys of inner dataclasses.
+        as_dict: dict[str, object] = {}
+        for field in dataclasses.fields(dataclass):
+            value = getattr(dataclass, field.name)
+            default = field.default
+            if default is not dataclasses.MISSING and value == default:
+                continue
+            as_dict[field.name] = value
+        return as_dict
+
+    def serialize_default(self, obj: object) -> object:
+        """Return JSON serializable version of given object."""
+        if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+            return self.serialize_dataclass(obj)
+        raise KeyError()
+
     def serialize(self) -> bytes:
         """Return serialized data to write to file."""
         return orjson.dumps(
             self.data,
+            default=self.serialize_default,
             option=orjson.OPT_APPEND_NEWLINE
             | orjson.OPT_UTC_Z
-            | orjson.OPT_NAIVE_UTC,
+            | orjson.OPT_NAIVE_UTC
+            | orjson.OPT_PASSTHROUGH_DATACLASS,
         )
 
     async def write_file(self) -> None:

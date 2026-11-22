@@ -100,8 +100,8 @@ class User:
             lastname=dict_["lastname"],
             date_of_birth=dt.date.fromisoformat(dict_["date_of_birth"]),
             code=dict_["code"],
-            retired=dict_["retired"],
-            is_admin=dict_["is_admin"],
+            retired=dict_.get("retired", False),
+            is_admin=dict_.get("is_admin", False),
         )
 
     def get_modified_copy(self, **changes: Unpack[UserRecordKwargs]) -> Self:
@@ -738,15 +738,16 @@ class CalendarDatabase(Database[Calendar]):
     def deserialize_entry(self, entry: SerializedCalendarRecord) -> Calendar:  # noqa: D102
         return Calendar.deserialize(entry)
 
-    def serialize(self) -> bytes:
-        """Return serialized data to write to file."""
+    def serialize(self) -> bytes:  # noqa: D102
         return orjson.dumps(
             self.data,
+            default=self.serialize_default,
             option=orjson.OPT_APPEND_NEWLINE
             | orjson.OPT_UTC_Z
             | orjson.OPT_NAIVE_UTC
             | orjson.OPT_OMIT_MICROSECONDS
-            | orjson.OPT_NON_STR_KEYS,
+            | orjson.OPT_NON_STR_KEYS
+            | orjson.OPT_PASSTHROUGH_DATACLASS,
         )
 
     def yield_all_unresolved_events(
@@ -805,8 +806,7 @@ class PasswordDatabase(MappingDatabase[int, str]):
     def deserialize_entry(self, entry: str) -> str:  # noqa: D102
         return entry
 
-    def serialize(self) -> bytes:
-        """Return serialized data to write to file."""
+    def serialize(self) -> bytes:  # noqa: D102
         return orjson.dumps(
             self.data,
             option=orjson.OPT_APPEND_NEWLINE | orjson.OPT_NON_STR_KEYS,
