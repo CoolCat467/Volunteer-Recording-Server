@@ -2671,7 +2671,7 @@ def run() -> None:
     hypercorn: dict[str, object] = config.get("hypercorn", {})
 
     ip_address: str | None = None
-    if True:  # args.local:
+    if args.local:
         ip_address = "127.0.0.1"
 
     run_server(
