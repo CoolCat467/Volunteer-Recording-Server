@@ -1142,10 +1142,50 @@ def admin_view_time_interval_get() -> str:
         range_selection_row,
     )
 
-    hours_per_user_table = htmlgen.wrap_tag(
-        "i",
-        "TODO: hours_per_user_table",
-        block=False,
+    hours_per_user_table = htmlgen.jinja_table(
+        "Hours Per User",
+        ("First Name", "Last Name", "Hours"),
+        htmlgen.jinja_table_row(
+            ("user", "hours_fraction"),
+            "time_interval_records",
+            "\n".join(
+                (
+                    htmlgen.table_cell(
+                        htmlgen.jinja_expression("user.firstname|escape"),
+                    ),
+                    htmlgen.table_cell(
+                        htmlgen.jinja_expression("user.lastname|escape"),
+                    ),
+                    htmlgen.table_cell(
+                        htmlgen.jinja_expression(
+                            "hours_fraction|float|round(2, 'ceil')",
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        class_="user-table center",
+    )
+
+    total_hours_table = htmlgen.jinja_table(
+        "Total",
+        ("Unique Volunteers", "Total Hours"),
+        htmlgen.jinja_table_row_elements(
+            ("value",),
+            "(time_interval_records|length, time_interval_records|sum(attribute=1)|float|round(2, 'ceil'))",
+            htmlgen.jinja_expression("value"),
+        ),
+        class_="user-table center",
+    )
+
+    time_interval_records_section = htmlgen.contain_in_box(
+        "\n".join(
+            (
+                hours_per_user_table,
+                htmlgen.tag("br"),
+                total_hours_table,
+            ),
+        ),
     )
 
     hours_per_user_categories_tables = htmlgen.wrap_tag(
@@ -1154,13 +1194,17 @@ def admin_view_time_interval_get() -> str:
         block=False,
     )
 
+    category_breakdown_section = htmlgen.contain_in_box(
+        hours_per_user_categories_tables,
+    )
+
     form_content = "\n".join(
         (
             autofill_range_content,
             range_selection_content,
-            hours_per_user_table,
+            time_interval_records_section,
             htmlgen.tag("br"),
-            hours_per_user_categories_tables,
+            category_breakdown_section,
             htmlgen.tag("br"),
             htmlgen.tag("br"),
             htmlgen.jinja_super_block(),

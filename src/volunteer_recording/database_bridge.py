@@ -750,7 +750,7 @@ class CalendarDatabase(Database[Calendar]):
     ) -> Generator[tuple[int, Counter[int]]]:
         """Yield (user id, {category id: total seconds}) tuples for all users for the given date range."""
         for user_id, calendar in enumerate(self):
-            breakdown = Counter()
+            breakdown: Counter[int] = Counter()
             for (
                 category_id,
                 duration,

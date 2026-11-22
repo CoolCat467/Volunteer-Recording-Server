@@ -38,6 +38,7 @@ from collections.abc import (
 )
 from dataclasses import dataclass, field
 from enum import Enum
+from fractions import Fraction
 from functools import partial, wraps
 from os import getenv
 from pathlib import Path
@@ -80,7 +81,6 @@ from volunteer_recording.server_utils import (
 )
 
 if TYPE_CHECKING:
-    from collections import Counter
     from collections.abc import Awaitable, Callable
 
     from werkzeug import Response as WerkzeugResponse
@@ -1021,17 +1021,37 @@ async def handle_admin_signout_get() -> AsyncIterator[str]:
 def yield_user_category_duration_breakdown(
     start: dt.date,
     end: dt.date,
-) -> Generator[tuple[database_bridge.User, Counter[int]]]:
-    """Yield (User, {category id: total seconds}) tuples for all users for the given date range."""
+) -> Generator[
+    tuple[database_bridge.User, dict[database_bridge.Category, Fraction]]
+]:
+    """Yield (User, {Category: hours fraction}) tuples for all users for the given date range."""
     calendar_db = APP_DATA["calendar"]
     user_db = APP_DATA["user"]
+    category_db = APP_DATA["category"]
 
     for user_id, breakdown in calendar_db.yield_category_duration_breakdown(
         start,
         end,
     ):
         user = user_db[user_id]
-        yield user, breakdown
+        yield (
+            user,
+            {
+                category_db[category_id]: Fraction(seconds, 60 * 60)
+                for category_id, seconds in breakdown.items()
+            },
+        )
+
+
+def yield_user_duration_breakdown(
+    iterable: Iterable[
+        tuple[database_bridge.User, dict[database_bridge.Category, Fraction]]
+    ],
+) -> Generator[tuple[database_bridge.User, Fraction]]:
+    """Yield (User, total hours fraction) tuples from the given iterable."""
+    for user, breakdown in iterable:
+        total_hours = sum(breakdown.values(), start=Fraction())
+        yield user, total_hours
 
 
 @app.get("/admin/view-time-interval")
@@ -1080,14 +1100,23 @@ async def handle_admin_view_time_interval_get() -> AsyncIterator[str]:
             interval_start_day,
         )
 
+    user_category_breakdown = tuple(
+        yield_user_category_duration_breakdown(
+            interval_start_day,
+            interval_end_day,
+        ),
+    )
+
+    time_interval_records = tuple(
+        yield_user_duration_breakdown(user_category_breakdown),
+    )
+
     return await stream_template(
         "admin_view_time_interval.html.jinja",
         interval_start_day=interval_start_day,
         interval_end_day=interval_end_day,
-        ##time_interval_records=yield_time_interval_table(
-        ##    interval_start_day,
-        ##    interval_end_day,
-        ##),
+        time_interval_records=time_interval_records,
+        user_category_breakdown=user_category_breakdown,
     )
 
 
