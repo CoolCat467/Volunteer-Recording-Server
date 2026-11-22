@@ -994,7 +994,7 @@ def active_session_required[**PS, T](
     @wraps(function)
     async def wrapper(*args: PS.args, **kwargs: PS.kwargs) -> T:
         """Try to get user id from session wrapper."""
-        # get_user_id_from_session()
+        get_user_id_from_session()
         return await function(*args, **kwargs)
 
     return wrapper
