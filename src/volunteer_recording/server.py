@@ -1043,6 +1043,28 @@ def yield_user_category_duration_breakdown(
         )
 
 
+def get_category_user_duration_breakdown(
+    iterable: Iterable[
+        tuple[database_bridge.User, dict[database_bridge.Category, Fraction]]
+    ],
+) -> Iterable[
+    tuple[
+        database_bridge.Category,
+        list[tuple[database_bridge.User, Fraction]],
+    ]
+]:
+    """Return iterable of (Category, [(User, hours fraction)]) tuples for the given iterable."""
+    category_entries: dict[
+        database_bridge.Category,
+        list[tuple[database_bridge.User, Fraction]],
+    ] = {}
+    for user, breakdown in iterable:
+        for category, hours in breakdown.items():
+            entries = category_entries.setdefault(category, [])
+            entries.append((user, hours))
+    return category_entries.items()
+
+
 def yield_user_duration_breakdown(
     iterable: Iterable[
         tuple[database_bridge.User, dict[database_bridge.Category, Fraction]]
@@ -1107,6 +1129,10 @@ async def handle_admin_view_time_interval_get() -> AsyncIterator[str]:
         ),
     )
 
+    category_user_breakdown = get_category_user_duration_breakdown(
+        user_category_breakdown,
+    )
+
     time_interval_records = tuple(
         yield_user_duration_breakdown(user_category_breakdown),
     )
@@ -1115,8 +1141,8 @@ async def handle_admin_view_time_interval_get() -> AsyncIterator[str]:
         "admin_view_time_interval.html.jinja",
         interval_start_day=interval_start_day,
         interval_end_day=interval_end_day,
+        category_user_breakdown=category_user_breakdown,
         time_interval_records=time_interval_records,
-        user_category_breakdown=user_category_breakdown,
     )
 
 

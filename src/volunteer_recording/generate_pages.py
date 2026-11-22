@@ -1158,7 +1158,7 @@ def admin_view_time_interval_get() -> str:
                     ),
                     htmlgen.table_cell(
                         htmlgen.jinja_expression(
-                            "hours_fraction|float|round(2, 'ceil')",
+                            "hours_fraction|float|round(3, 'ceil')",
                         ),
                     ),
                 ),
@@ -1172,7 +1172,7 @@ def admin_view_time_interval_get() -> str:
         ("Unique Volunteers", "Total Hours"),
         htmlgen.jinja_table_row_elements(
             ("value",),
-            "(time_interval_records|length, time_interval_records|sum(attribute=1)|float|round(2, 'ceil'))",
+            "(time_interval_records|length, time_interval_records|sum(attribute=1)|float|round(3, 'ceil'))",
             htmlgen.jinja_expression("value"),
         ),
         class_="user-table center",
@@ -1188,14 +1188,67 @@ def admin_view_time_interval_get() -> str:
         ),
     )
 
-    hours_per_user_categories_tables = htmlgen.wrap_tag(
-        "i",
-        "TODO: hours_per_user_categories_tables",
+    category_title = htmlgen.wrap_tag(
+        "code",
+        htmlgen.jinja_expression("category.title|escape"),
         block=False,
     )
 
-    category_breakdown_section = htmlgen.contain_in_box(
-        hours_per_user_categories_tables,
+    category_table = htmlgen.jinja_table(
+        f"Hours Per User for {category_title}",
+        ("First Name", "Last Name", "Hours"),
+        htmlgen.jinja_table_row(
+            ("user", "hours_fraction"),
+            "time_interval_records",
+            "\n".join(
+                (
+                    htmlgen.table_cell(
+                        htmlgen.jinja_expression("user.firstname|escape"),
+                    ),
+                    htmlgen.table_cell(
+                        htmlgen.jinja_expression("user.lastname|escape"),
+                    ),
+                    htmlgen.table_cell(
+                        htmlgen.jinja_expression(
+                            "hours_fraction|float|round(3, 'ceil')",
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        class_="user-table center",
+    )
+
+    category_total_hours_table = htmlgen.jinja_table(
+        f"Total for {category_title}",
+        ("Unique Volunteers", "Total Hours"),
+        htmlgen.jinja_table_row_elements(
+            ("value",),
+            "(time_interval_records|length, time_interval_records|sum(attribute=1)|float|round(3, 'ceil'))",
+            htmlgen.jinja_expression("value"),
+        ),
+        class_="user-table center",
+    )
+
+    category_table_section = "\n".join(
+        (
+            category_table,
+            htmlgen.tag("br"),
+            category_total_hours_table,
+        ),
+    )
+
+    hours_per_user_categories_tables = htmlgen.jinja_for_loop(
+        ("category", "time_interval_records"),
+        "category_user_breakdown",
+        "\n".join(
+            (
+                htmlgen.contain_in_box(
+                    category_table_section,
+                ),
+                htmlgen.tag("br"),
+            ),
+        ),
     )
 
     form_content = "\n".join(
@@ -1204,8 +1257,7 @@ def admin_view_time_interval_get() -> str:
             range_selection_content,
             time_interval_records_section,
             htmlgen.tag("br"),
-            category_breakdown_section,
-            htmlgen.tag("br"),
+            hours_per_user_categories_tables,
             htmlgen.tag("br"),
             htmlgen.jinja_super_block(),
         ),

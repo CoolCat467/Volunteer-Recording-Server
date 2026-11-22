@@ -30,7 +30,7 @@
         <tr>
           <td>{{ user.firstname|escape }}</td>
           <td>{{ user.lastname|escape }}</td>
-          <td>{{ hours_fraction|float|round(2, 'ceil') }}</td>
+          <td>{{ hours_fraction|float|round(3, 'ceil') }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -47,7 +47,7 @@
       </thead>
       <tbody>
         <tr>
-          {% for value in (time_interval_records|length, time_interval_records|sum(attribute=1)|float|round(2, 'ceil')) %}
+          {% for value in (time_interval_records|length, time_interval_records|sum(attribute=1)|float|round(3, 'ceil')) %}
           <td>{{ value }}</td>
           {% endfor %}
         </tr>
@@ -55,10 +55,48 @@
     </table>
   </div>
   <br>
+  {% for category, time_interval_records in category_user_breakdown %}
   <div class="box">
-    <i>TODO: hours_per_user_categories_tables</i>
+    <table class="user-table center">
+      <caption>Hours Per User for <code>{{ category.title|escape }}</code></caption>
+      <thead>
+        <tr>
+          {% for header_element in ('First Name', 'Last Name', 'Hours') %}
+          <th>{{ header_element }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for user, hours_fraction in time_interval_records %}
+        <tr>
+          <td>{{ user.firstname|escape }}</td>
+          <td>{{ user.lastname|escape }}</td>
+          <td>{{ hours_fraction|float|round(3, 'ceil') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <br>
+    <table class="user-table center">
+      <caption>Total for <code>{{ category.title|escape }}</code></caption>
+      <thead>
+        <tr>
+          {% for header_element in ('Unique Volunteers', 'Total Hours') %}
+          <th>{{ header_element }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          {% for value in (time_interval_records|length, time_interval_records|sum(attribute=1)|float|round(3, 'ceil')) %}
+          <td>{{ value }}</td>
+          {% endfor %}
+        </tr>
+      </tbody>
+    </table>
   </div>
   <br>
+  {% endfor %}
   <br>
   {{ super() -}}
 </form>
