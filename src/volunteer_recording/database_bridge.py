@@ -30,6 +30,7 @@ import datetime as dt
 from collections import Counter
 from dataclasses import dataclass, field, replace
 from enum import Enum, IntEnum, auto
+from math import ceil
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -280,6 +281,12 @@ class BadEntryReason(Enum):
     IntervalCollision = "Intersects with an existing interval."
 
 
+def yield_days(start: dt.date, end: dt.date) -> Generator[dt.date]:
+    """Yield every day between the given start and end date, inclusive."""
+    for i in range((end - start).days + 1):
+        yield start + dt.timedelta(days=i)
+
+
 @dataclass(slots=True, frozen=True)
 class Calendar:
     """Calendar record."""
@@ -487,7 +494,7 @@ class Calendar:
                 return (start, end)
         return None
 
-    def yield_interval_time_data(
+    def yield_interval_times(
         self,
         date: dt.date,
     ) -> Generator[tuple[dt.time, dt.time]]:
@@ -540,7 +547,7 @@ class Calendar:
             return BadEntryReason.FutureEvent
 
         # Also problems if there is any overlap between existing intervals.
-        for start, end in self.yield_interval_time_data(date):
+        for start, end in self.yield_interval_times(date):
             if start_time < end and start < end_time:
                 return BadEntryReason.IntervalCollision
 
@@ -687,6 +694,27 @@ class Calendar:
         del day[index + 1]
         del day[index]
 
+    def yield_interval_category_seconds(
+        self,
+        date: dt.date,
+    ) -> Generator[tuple[int, int]]:
+        """Yield (category_id, duration seconds) for every interval on the given date."""
+        for start, end in self.yield_interval_data(date):
+            start_datetime = dt.datetime.combine(date, start.time)
+            end_datetime = dt.datetime.combine(date, end.time)
+
+            duration = end_datetime - start_datetime
+            yield end.category_id, ceil(duration.total_seconds())
+
+    def yield_interval_category_seconds_range(
+        self,
+        start_date: dt.date,
+        end_date: dt.date,
+    ) -> Generator[tuple[int, int]]:
+        """Yield (category_id, duration seconds) for every interval within the range of dates inclusive."""
+        for date in yield_days(start_date, end_date):
+            yield from self.yield_interval_category_seconds(date)
+
 
 class CalendarDatabase(Database[Calendar]):
     """Database of calendar records."""
@@ -715,8 +743,23 @@ class CalendarDatabase(Database[Calendar]):
             for event in calendar.yield_unresolved_events():
                 yield user_id, event
 
-
-##    def yield_all_events
+    def yield_category_duration_breakdown(
+        self,
+        start_date: dt.date,
+        end_date: dt.date,
+    ) -> Generator[tuple[int, Counter[int]]]:
+        """Yield (user id, {category id: total seconds}) tuples for all users for the given date range."""
+        for user_id, calendar in enumerate(self):
+            breakdown = Counter()
+            for (
+                category_id,
+                duration,
+            ) in calendar.yield_interval_category_seconds_range(
+                start_date,
+                end_date,
+            ):
+                breakdown[category_id] += duration
+            yield user_id, breakdown
 
 
 class PasswordDatabase(MappingDatabase[int, str]):

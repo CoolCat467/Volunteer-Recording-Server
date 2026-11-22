@@ -80,6 +80,7 @@ from volunteer_recording.server_utils import (
 )
 
 if TYPE_CHECKING:
+    from collections import Counter
     from collections.abc import Awaitable, Callable
 
     from werkzeug import Response as WerkzeugResponse
@@ -1017,14 +1018,20 @@ async def handle_admin_signout_get() -> AsyncIterator[str]:
     )
 
 
-def yield_days(start: dt.date, end: dt.date) -> Generator[dt.date]:
-    """Yield every day between the given start and end date, inclusive."""
-    for i in range((end - start).days + 1):
-        yield start + dt.timedelta(days=i)
+def yield_user_category_duration_breakdown(
+    start: dt.date,
+    end: dt.date,
+) -> Generator[tuple[database_bridge.User, Counter[int]]]:
+    """Yield (User, {category id: total seconds}) tuples for all users for the given date range."""
+    calendar_db = APP_DATA["calendar"]
+    user_db = APP_DATA["user"]
 
-
-##def yield_time_interval_table(start: dt.date, end: dt.date) -> None:
-##    calendar_db = APP_DATA["calendar"]
+    for user_id, breakdown in calendar_db.yield_category_duration_breakdown(
+        start,
+        end,
+    ):
+        user = user_db[user_id]
+        yield user, breakdown
 
 
 @app.get("/admin/view-time-interval")
