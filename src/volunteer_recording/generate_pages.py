@@ -1085,6 +1085,7 @@ def template_admin_return_signout_footer(
 def admin_view_time_interval_get() -> str:
     """Generate admin view time interval GET page."""
     range_text = htmlgen.jinja_expression("range_text")
+
     autofill_range = htmlgen.jinja_for_loop(
         ("range_text",),
         (
@@ -1105,6 +1106,14 @@ def admin_view_time_interval_get() -> str:
             htmlgen.wrap_tag("p", "Autofill Range", block=False),
             autofill_range,
         ),
+    )
+
+    export_link = htmlgen.jinja_expression("export_link")
+
+    export_csv_link = htmlgen.create_link(
+        export_link,
+        "Export CSV",
+        class_="submit_button",
     )
 
     range_selection_row = htmlgen.table_row_elements(
@@ -1135,6 +1144,7 @@ def admin_view_time_interval_get() -> str:
                 "Submit",
                 type_="submit",
             ),
+            export_csv_link,
         ),
         cell_block=True,
     )
@@ -1254,21 +1264,23 @@ def admin_view_time_interval_get() -> str:
         ),
     )
 
-    form_content = "\n".join(
+    form_content = f"{autofill_range_content}\n{range_selection_content}"
+
+    form = htmlgen.form(
+        "view_time_interval",
+        form_content,
+    )
+
+    body = "\n".join(
         (
-            autofill_range_content,
-            range_selection_content,
+            form,
             time_interval_records_section,
             htmlgen.tag("br"),
             hours_per_user_categories_tables,
             htmlgen.tag("br"),
             htmlgen.jinja_super_block(),
+            export_csv_link,
         ),
-    )
-
-    body = htmlgen.form(
-        "view_time_interval",
-        form_content,
     )
 
     return template_admin_return_signout_footer(

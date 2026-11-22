@@ -19,93 +19,97 @@
       <td>
         <button type="submit">Submit</button>
       </td>
+      <td>
+        <a href="{{ export_link }}" class="submit_button">Export CSV</a>
+      </td>
     </tr>
   </table>
-  <div class="box">
-    <table class="user-table center">
-      <caption>Hours Per User</caption>
-      <thead>
-        <tr>
-          {% for header_element in ('First Name', 'Last Name', 'Hours') %}
-          <th>{{ header_element }}</th>
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for user, hours_fraction in time_interval_records if hours_fraction %}
-        <tr>
-          <td>{{ user.firstname|escape }}</td>
-          <td>{{ user.lastname|escape }}</td>
-          <td>{{ hours_fraction|float|round(3, 'ceil') }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    <br>
-    <table class="user-table center">
-      <caption>Total</caption>
-      <thead>
-        <tr>
-          {% for header_element in ('Unique Volunteers', 'Total Hours') %}
-          <th>{{ header_element }}</th>
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          {% for value in (time_interval_records|map(attribute=1)|select|list|length, time_interval_records|sum(attribute=1)|float|round(3, 'ceil')) %}
-          <td>{{ value }}</td>
-          {% endfor %}
-        </tr>
-      </tbody>
-    </table>
-  </div>
-  <br>
-  {% for category, time_interval_records in category_user_breakdown %}
-  <div class="box">
-    <table class="user-table center">
-      <caption>Hours Per User for <code>{{ category.title|escape }}</code></caption>
-      <thead>
-        <tr>
-          {% for header_element in ('First Name', 'Last Name', 'Hours') %}
-          <th>{{ header_element }}</th>
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for user, hours_fraction in time_interval_records if hours_fraction %}
-        <tr>
-          <td>{{ user.firstname|escape }}</td>
-          <td>{{ user.lastname|escape }}</td>
-          <td>{{ hours_fraction|float|round(3, 'ceil') }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    <br>
-    <table class="user-table center">
-      <caption>Total for <code>{{ category.title|escape }}</code></caption>
-      <thead>
-        <tr>
-          {% for header_element in ('Unique Volunteers', 'Total Hours') %}
-          <th>{{ header_element }}</th>
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          {% for value in (time_interval_records|map(attribute=1)|select|list|length, time_interval_records|sum(attribute=1)|float|round(3, 'ceil')) %}
-          <td>{{ value }}</td>
-          {% endfor %}
-        </tr>
-      </tbody>
-    </table>
-  </div>
-  <br>
-  {% endfor %}
-  <br>
-  {{ super() -}}
 </form>
+<div class="box">
+  <table class="user-table center">
+    <caption>Hours Per User</caption>
+    <thead>
+      <tr>
+        {% for header_element in ('First Name', 'Last Name', 'Hours') %}
+        <th>{{ header_element }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for user, hours_fraction in time_interval_records if hours_fraction %}
+      <tr>
+        <td>{{ user.firstname|escape }}</td>
+        <td>{{ user.lastname|escape }}</td>
+        <td>{{ hours_fraction|float|round(3, 'ceil') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <br>
+  <table class="user-table center">
+    <caption>Total</caption>
+    <thead>
+      <tr>
+        {% for header_element in ('Unique Volunteers', 'Total Hours') %}
+        <th>{{ header_element }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        {% for value in (time_interval_records|map(attribute=1)|select|list|length, time_interval_records|sum(attribute=1)|float|round(3, 'ceil')) %}
+        <td>{{ value }}</td>
+        {% endfor %}
+      </tr>
+    </tbody>
+  </table>
+</div>
+<br>
+{% for category, time_interval_records in category_user_breakdown %}
+<div class="box">
+  <table class="user-table center">
+    <caption>Hours Per User for <code>{{ category.title|escape }}</code></caption>
+    <thead>
+      <tr>
+        {% for header_element in ('First Name', 'Last Name', 'Hours') %}
+        <th>{{ header_element }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for user, hours_fraction in time_interval_records if hours_fraction %}
+      <tr>
+        <td>{{ user.firstname|escape }}</td>
+        <td>{{ user.lastname|escape }}</td>
+        <td>{{ hours_fraction|float|round(3, 'ceil') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <br>
+  <table class="user-table center">
+    <caption>Total for <code>{{ category.title|escape }}</code></caption>
+    <thead>
+      <tr>
+        {% for header_element in ('Unique Volunteers', 'Total Hours') %}
+        <th>{{ header_element }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        {% for value in (time_interval_records|map(attribute=1)|select|list|length, time_interval_records|sum(attribute=1)|float|round(3, 'ceil')) %}
+        <td>{{ value }}</td>
+        {% endfor %}
+      </tr>
+    </tbody>
+  </table>
+</div>
+<br>
+{% endfor %}
+<br>
+{{ super() -}}
+<a href="{{ export_link }}" class="submit_button">Export CSV</a>
 {% endblock body %}
 {% block return_text scoped %}Sign out{% endblock return_text %}
 {% block return_link scoped %}/admin/signout{% endblock return_link %}

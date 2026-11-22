@@ -25,6 +25,7 @@ __license__ = "GNU General Public License Version 3"
 
 
 import argparse
+import csv
 import datetime as dt
 import re
 import tomllib
@@ -35,11 +36,14 @@ from collections.abc import (
     Coroutine,
     Generator,
     Iterable,
+    Sequence,
 )
 from dataclasses import dataclass, field
 from enum import Enum
 from fractions import Fraction
 from functools import partial, wraps
+from io import StringIO
+from math import ceil
 from os import getenv
 from pathlib import Path
 from typing import (
@@ -57,7 +61,7 @@ import trio
 from dotenv import load_dotenv
 from hypercorn.config import Config
 from hypercorn.trio import serve
-from quart import request
+from quart import Response, request
 from quart.templating import stream_template
 from quart_auth import (
     AuthUser,
@@ -1143,6 +1147,117 @@ async def handle_admin_view_time_interval_get() -> AsyncIterator[str]:
         interval_end_day=interval_end_day,
         category_user_breakdown=category_user_breakdown,
         time_interval_records=time_interval_records,
+        export_link=app.url_for(
+            "export_time_interval",
+            interval_start_day=interval_start_day,
+            interval_end_day=interval_end_day,
+        ),
+    )
+
+
+def render_hours_fraction(value: Fraction) -> str:
+    """Return hours fraction as a string."""
+    return str(ceil(float(value) * 1000) / 1000)
+
+
+def spreadsheet_safe(value: object) -> str:
+    """Reduce formula injection risk when the CSV is opened in spreadsheet software."""
+    text = str(value)
+    if text.lstrip().startswith(("=", "+", "-", "@", "\t", "\r")):
+        return "'" + text
+    return text
+
+
+@app.get("/admin/view-time-interval/export.csv")
+@active_session_required
+async def export_time_interval() -> Response:
+    """Handle administrator view time interval export CSV GET request."""
+    args = request.args
+
+    raw_interval_start_day = args.get("interval_start_day", "")
+    raw_interval_end_day = args.get("interval_end_day", "")
+
+    interval_start_day = parse_iso_date(raw_interval_start_day)
+    interval_end_day = parse_iso_date(raw_interval_end_day)
+
+    now = dt.datetime.now().replace(microsecond=0)
+    today = now.date()
+    if interval_start_day is None or interval_end_day is None:
+        calendar = today.isocalendar()
+        interval_start_day = dt.date.fromisocalendar(
+            calendar.year,
+            calendar.week,
+            1,
+        )
+        interval_end_day = dt.date.fromisocalendar(
+            calendar.year,
+            calendar.week,
+            7,
+        )
+
+    user_category_breakdown = tuple(
+        yield_user_category_duration_breakdown(
+            interval_start_day,
+            interval_end_day,
+        ),
+    )
+    category_user_breakdown = get_category_user_duration_breakdown(
+        user_category_breakdown,
+    )
+    time_interval_records = tuple(
+        yield_user_duration_breakdown(user_category_breakdown),
+    )
+
+    output = StringIO(newline="")
+    writer = csv.writer(output)
+
+    def write_user_table(
+        title: str,
+        records: Sequence[tuple[database_bridge.User, Fraction]],
+    ) -> None:
+        writer.writerow([title])
+        writer.writerow(["First Name", "Last Name", "Hours"])
+
+        for user, hours in records:
+            if hours:
+                writer.writerow(
+                    [
+                        spreadsheet_safe(user.firstname),
+                        spreadsheet_safe(user.lastname),
+                        render_hours_fraction(hours),
+                    ],
+                )
+
+        nonzero = [(user, hours) for user, hours in records if hours]
+        writer.writerow(
+            [
+                "Unique Volunteers",
+                len(nonzero),
+                "Total Hours",
+                render_hours_fraction(
+                    sum((hours for _, hours in records), start=Fraction()),
+                ),
+            ],
+        )
+        writer.writerow([])
+
+    write_user_table("Hours Per User", time_interval_records)
+
+    for category, records in category_user_breakdown:
+        write_user_table(
+            f"Hours Per User for {category.title}",
+            records,
+        )
+
+    # BOM helps some spreadsheet apps read UTF-8.
+    csv_text = "\ufeff" + output.getvalue()
+
+    filename = f"export_interval_{interval_start_day}_to_{interval_end_day}_at_{now}.csv"
+
+    return Response(
+        csv_text,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
