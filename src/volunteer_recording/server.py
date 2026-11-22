@@ -768,9 +768,10 @@ async def checkout_user_get(
 )
 async def checkout_user_post(
     user_id: int,
-    created_user: bool = False,
 ) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
     """Handle user checkout POST request."""
+    category_db = APP_DATA["category"]
+
     multi_dict = await request.form
 
     category_id = multi_dict.get("category_id")
@@ -796,6 +797,19 @@ async def checkout_user_post(
     assert isinstance(category_id, str)
     parsed_category_id = int(category_id)
 
+    if parsed_category_id < 0 or parsed_category_id > len(category_db):
+        errors.append("<code>category_id</code> out of bounds.")
+    elif category_db[parsed_category_id].retired:
+        errors.append("Specified <code>category_id</code> is retired.")
+
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=request.full_path.removesuffix("?"),
+        )
+
     # Add checkout stamp for user
     user_add_timestamp(
         user_id,
@@ -803,13 +817,9 @@ async def checkout_user_post(
         parsed_category_id,
     )
 
-    message = "Successfully checked out!"
-    if created_user:
-        message = "Successfully created new user and checked out!"
-
     return await stream_template(
         "success.html.jinja",
-        message=message,
+        message="Successfully checked out!",
         # refreshes_after=10,
     )
 
