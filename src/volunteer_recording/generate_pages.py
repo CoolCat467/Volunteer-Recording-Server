@@ -2162,7 +2162,7 @@ def generate_admin_edit_user_new_password_get() -> str:
             (
                 htmlgen.wrap_tag(
                     "p",
-                    f"Changes from the prior screen has been saved. Please {change_type} password for this user.{extra}",
+                    f"Changes from the prior screen have been saved. Please {change_type} password for this user.{extra}",
                     block=False,
                 ),
                 htmlgen.form(
