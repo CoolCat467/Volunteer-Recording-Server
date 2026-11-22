@@ -1136,6 +1136,7 @@ def admin_view_time_interval_get() -> str:
                 type_="submit",
             ),
         ),
+        cell_block=True,
     )
 
     range_selection_content = htmlgen.table(
@@ -1163,6 +1164,7 @@ def admin_view_time_interval_get() -> str:
                     ),
                 ),
             ),
+            "hours_fraction",
         ),
         class_="user-table center",
     )
@@ -1172,7 +1174,7 @@ def admin_view_time_interval_get() -> str:
         ("Unique Volunteers", "Total Hours"),
         htmlgen.jinja_table_row_elements(
             ("value",),
-            "(time_interval_records|length, time_interval_records|sum(attribute=1)|float|round(3, 'ceil'))",
+            "(time_interval_records|map(attribute=1)|select|list|length, time_interval_records|sum(attribute=1)|float|round(3, 'ceil'))",
             htmlgen.jinja_expression("value"),
         ),
         class_="user-table center",
@@ -1215,6 +1217,7 @@ def admin_view_time_interval_get() -> str:
                     ),
                 ),
             ),
+            "hours_fraction",
         ),
         class_="user-table center",
     )
@@ -1224,7 +1227,7 @@ def admin_view_time_interval_get() -> str:
         ("Unique Volunteers", "Total Hours"),
         htmlgen.jinja_table_row_elements(
             ("value",),
-            "(time_interval_records|length, time_interval_records|sum(attribute=1)|float|round(3, 'ceil'))",
+            "(time_interval_records|map(attribute=1)|select|list|length, time_interval_records|sum(attribute=1)|float|round(3, 'ceil'))",
             htmlgen.jinja_expression("value"),
         ),
         class_="user-table center",

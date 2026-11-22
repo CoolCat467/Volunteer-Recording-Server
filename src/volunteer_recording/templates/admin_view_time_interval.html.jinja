@@ -8,11 +8,17 @@
   {% endfor %}
   <table>
     <tr>
-      <td><label for="interval_start_field">Interval Start Day</label>
-      <input type="date" id="interval_start_field" name="interval_start_day" autocomplete="off" size="30" value="{{ interval_start_day }}"></td>
-      <td><label for="interval_end_field">Interval End Day</label>
-      <input type="date" id="interval_end_field" name="interval_end_day" autocomplete="off" size="30" value="{{ interval_end_day }}"></td>
-      <td><button type="submit">Submit</button></td>
+      <td>
+        <label for="interval_start_field">Interval Start Day</label>
+        <input type="date" id="interval_start_field" name="interval_start_day" autocomplete="off" size="30" value="{{ interval_start_day }}">
+      </td>
+      <td>
+        <label for="interval_end_field">Interval End Day</label>
+        <input type="date" id="interval_end_field" name="interval_end_day" autocomplete="off" size="30" value="{{ interval_end_day }}">
+      </td>
+      <td>
+        <button type="submit">Submit</button>
+      </td>
     </tr>
   </table>
   <div class="box">
@@ -26,7 +32,7 @@
         </tr>
       </thead>
       <tbody>
-        {% for user, hours_fraction in time_interval_records %}
+        {% for user, hours_fraction in time_interval_records if hours_fraction %}
         <tr>
           <td>{{ user.firstname|escape }}</td>
           <td>{{ user.lastname|escape }}</td>
@@ -47,7 +53,7 @@
       </thead>
       <tbody>
         <tr>
-          {% for value in (time_interval_records|length, time_interval_records|sum(attribute=1)|float|round(3, 'ceil')) %}
+          {% for value in (time_interval_records|map(attribute=1)|select|list|length, time_interval_records|sum(attribute=1)|float|round(3, 'ceil')) %}
           <td>{{ value }}</td>
           {% endfor %}
         </tr>
@@ -67,7 +73,7 @@
         </tr>
       </thead>
       <tbody>
-        {% for user, hours_fraction in time_interval_records %}
+        {% for user, hours_fraction in time_interval_records if hours_fraction %}
         <tr>
           <td>{{ user.firstname|escape }}</td>
           <td>{{ user.lastname|escape }}</td>
@@ -88,7 +94,7 @@
       </thead>
       <tbody>
         <tr>
-          {% for value in (time_interval_records|length, time_interval_records|sum(attribute=1)|float|round(3, 'ceil')) %}
+          {% for value in (time_interval_records|map(attribute=1)|select|list|length, time_interval_records|sum(attribute=1)|float|round(3, 'ceil')) %}
           <td>{{ value }}</td>
           {% endfor %}
         </tr>
