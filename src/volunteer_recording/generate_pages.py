@@ -1128,25 +1128,25 @@ def admin_view_time_interval_get() -> str:
     range_selection_row = htmlgen.table_row_elements(
         (
             htmlgen.input_field(
-                "interval_start_field",
-                "Interval Start Day",
-                field_name="interval_start_day",
+                "start_field",
+                "Start Day",
+                field_name="start_day",
                 field_type="date",
                 attrs={
                     "autocomplete": "off",
                     "size": 30,
-                    "value": htmlgen.jinja_expression("interval_start_day"),
+                    "value": htmlgen.jinja_expression("start_day"),
                 },
             ),
             htmlgen.input_field(
-                "interval_end_field",
-                "Interval End Day",
-                field_name="interval_end_day",
+                "end_field",
+                "End Day",
+                field_name="end_day",
                 field_type="date",
                 attrs={
                     "autocomplete": "off",
                     "size": 30,
-                    "value": htmlgen.jinja_expression("interval_end_day"),
+                    "value": htmlgen.jinja_expression("end_day"),
                 },
             ),
             htmlgen.create_button(

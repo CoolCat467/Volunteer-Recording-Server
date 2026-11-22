@@ -1059,55 +1059,34 @@ def yield_user_duration_breakdown(
 
 
 @app.get("/admin/view-time-interval")
-@app.post("/admin/view-time-interval")
 @active_session_required
-async def handle_admin_view_time_interval_get() -> AsyncIterator[str]:
+async def admin_view_time_interval_get() -> AsyncIterator[str]:
     """Handle administrator view time interval GET request."""
-    multi_dict = await request.form
+    args = request.args
 
-    autofill_range_select = multi_dict.get("autofill_range_select")
-    raw_interval_start_day = multi_dict.get("interval_start_day", "")
-    raw_interval_end_day = multi_dict.get("interval_end_day", "")
+    raw_start_day = args.get("start_day", "")
+    raw_end_day = args.get("end_day", "")
 
-    interval_start_day = parse_iso_date(raw_interval_start_day)
-    interval_end_day = parse_iso_date(raw_interval_end_day)
+    start_day = parse_iso_date(raw_start_day)
+    end_day = parse_iso_date(raw_end_day)
 
-    today = dt.date.today()
-    if (
-        interval_start_day is None
-        or interval_end_day is None
-        or autofill_range_select == "week"
-    ):
-        calendar = today.isocalendar()
-        interval_start_day = dt.date.fromisocalendar(
+    if start_day is None or end_day is None:
+        calendar = dt.date.today().isocalendar()
+        start_day = dt.date.fromisocalendar(
             calendar.year,
             calendar.week,
             1,
         )
-        interval_end_day = dt.date.fromisocalendar(
+        end_day = dt.date.fromisocalendar(
             calendar.year,
             calendar.week,
             7,
         )
-    elif autofill_range_select == "month":
-        interval_start_day = today.replace(day=1)
-        interval_end_day = today.replace(
-            day=monthrange(today.year, today.month)[1],
-        )
-    elif autofill_range_select == "year":
-        interval_start_day = today.replace(month=1, day=1)
-        interval_end_day = today.replace(month=12, day=31)
-
-    if interval_end_day < interval_start_day:
-        interval_start_day, interval_end_day = (
-            interval_end_day,
-            interval_start_day,
-        )
 
     user_category_breakdown = tuple(
         yield_user_category_duration_breakdown(
-            interval_start_day,
-            interval_end_day,
+            start_day,
+            end_day,
         ),
     )
 
@@ -1121,14 +1100,64 @@ async def handle_admin_view_time_interval_get() -> AsyncIterator[str]:
 
     return await stream_template(
         "admin_view_time_interval.html.jinja",
-        interval_start_day=interval_start_day,
-        interval_end_day=interval_end_day,
+        start_day=start_day,
+        end_day=end_day,
         category_user_breakdown=category_user_breakdown,
         time_interval_records=time_interval_records,
         export_link=app.url_for(
             "export_time_interval",
-            interval_start_day=interval_start_day,
-            interval_end_day=interval_end_day,
+            start_day=start_day,
+            end_day=end_day,
+        ),
+    )
+
+
+@app.post("/admin/view-time-interval")
+@active_session_required
+async def admin_view_time_interval_post() -> WerkzeugResponse:
+    """Handle administrator view time interval POST request."""
+    multi_dict = await request.form
+
+    autofill_range_select = multi_dict.get("autofill_range_select")
+    raw_start_day = multi_dict.get("start_day", "")
+    raw_end_day = multi_dict.get("end_day", "")
+
+    start_day = parse_iso_date(raw_start_day)
+    end_day = parse_iso_date(raw_end_day)
+
+    today = dt.date.today()
+    if start_day is None or end_day is None or autofill_range_select == "week":
+        calendar = today.isocalendar()
+        start_day = dt.date.fromisocalendar(
+            calendar.year,
+            calendar.week,
+            1,
+        )
+        end_day = dt.date.fromisocalendar(
+            calendar.year,
+            calendar.week,
+            7,
+        )
+    elif autofill_range_select == "month":
+        start_day = today.replace(day=1)
+        end_day = today.replace(
+            day=monthrange(today.year, today.month)[1],
+        )
+    elif autofill_range_select == "year":
+        start_day = today.replace(month=1, day=1)
+        end_day = today.replace(month=12, day=31)
+
+    if end_day < start_day:
+        start_day, end_day = (
+            end_day,
+            start_day,
+        )
+
+    return app.redirect(
+        app.url_for(
+            "admin_view_time_interval_get",
+            start_day=start_day,
+            end_day=end_day,
         ),
     )
 
@@ -1152,22 +1181,22 @@ async def export_time_interval() -> Response:
     """Handle administrator view time interval export CSV GET request."""
     args = request.args
 
-    raw_interval_start_day = args.get("interval_start_day", "")
-    raw_interval_end_day = args.get("interval_end_day", "")
+    raw_start_day = args.get("start_day", "")
+    raw_end_day = args.get("end_day", "")
 
-    interval_start_day = parse_iso_date(raw_interval_start_day)
-    interval_end_day = parse_iso_date(raw_interval_end_day)
+    start_day = parse_iso_date(raw_start_day)
+    end_day = parse_iso_date(raw_end_day)
 
     now = dt.datetime.now().replace(microsecond=0)
     today = now.date()
-    if interval_start_day is None or interval_end_day is None:
+    if start_day is None or end_day is None:
         calendar = today.isocalendar()
-        interval_start_day = dt.date.fromisocalendar(
+        start_day = dt.date.fromisocalendar(
             calendar.year,
             calendar.week,
             1,
         )
-        interval_end_day = dt.date.fromisocalendar(
+        end_day = dt.date.fromisocalendar(
             calendar.year,
             calendar.week,
             7,
@@ -1175,8 +1204,8 @@ async def export_time_interval() -> Response:
 
     user_category_breakdown = tuple(
         yield_user_category_duration_breakdown(
-            interval_start_day,
-            interval_end_day,
+            start_day,
+            end_day,
         ),
     )
     category_user_breakdown = get_category_user_duration_breakdown(
@@ -1230,7 +1259,7 @@ async def export_time_interval() -> Response:
     # BOM helps some spreadsheet apps read UTF-8.
     csv_text = "\ufeff" + output.getvalue()
 
-    filename = f"export_interval_{interval_start_day}_to_{interval_end_day}_at_{now}.csv"
+    filename = f"export_interval_{start_day}_to_{end_day}_at_{now}.csv"
 
     return Response(
         csv_text,
