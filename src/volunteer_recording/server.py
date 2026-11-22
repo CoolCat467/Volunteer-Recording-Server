@@ -2020,10 +2020,14 @@ async def handle_admin_edit_category_get(
             return_link="/admin/edit-categories",
         )
 
+    non_retired_records = sum(not category.retired for category in category_db)
+    allowed_retire = (non_retired_records - 1) > 0
+
     return await stream_template(
         "admin_edit_category.html.jinja",
         autofill_title=category.title,
         autofill_retired=category.retired,
+        allowed_retire=allowed_retire,
     )
 
 
@@ -2050,6 +2054,9 @@ async def handle_admin_edit_category_post(
     title = multi_dict.get("title")
     retired = multi_dict.get("retired") is not None
 
+    non_retired_records = sum(not category.retired for category in category_db)
+    new_non_retired_count = non_retired_records - retired
+
     errors = []
     if title is None:
         errors.append("Missing <code>title</code> field.")
@@ -2058,6 +2065,11 @@ async def handle_admin_edit_category_post(
     elif len(title) < 3:
         errors.append(
             "<code>title</code> field value must be at least three characters in length.",
+        )
+
+    if not new_non_retired_count:
+        errors.append(
+            "For system integrity purposes, there must be at least one non-retired category.",
         )
 
     if errors:

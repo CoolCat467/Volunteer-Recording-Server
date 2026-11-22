@@ -1802,6 +1802,17 @@ def generate_admin_edit_category_get() -> str:
         ),
     )
 
+    retired_section = htmlgen.jinja_if_block(
+        {
+            "allowed_retire or autofill_retired": retired_checkbox,
+            "": htmlgen.wrap_tag(
+                "p",
+                "Not allowed to retire the sole non-retired category.",
+                block=False,
+            ),
+        },
+    )
+
     title_text_input = htmlgen.input_field(
         "title",
         "Title",
@@ -1835,7 +1846,7 @@ def generate_admin_edit_category_get() -> str:
         (
             title_text_input,
             htmlgen.tag("br"),
-            retired_checkbox,
+            retired_section,
             htmlgen.tag("br"),
             htmlgen.tag("br"),
             htmlgen.jinja_super_block(),

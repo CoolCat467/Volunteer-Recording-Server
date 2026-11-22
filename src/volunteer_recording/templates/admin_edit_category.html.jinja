@@ -5,8 +5,12 @@
   <label for="title">Title</label>
   <input id="title" name="title" value="{{ autofill_title|escape }}" required="true" minlength="3" size="30">
   <br>
+  {% if allowed_retire or autofill_retired %}
   <label for="retired_checkbox">Retired</label>
   <input {% if autofill_retired %}checked="true" {% endif %}type="checkbox" id="retired_checkbox" name="retired">
+  {% else %}
+  <p>Not allowed to retire the sole non-retired category.</p>
+  {% endif %}
   <br>
   <br>
   {{ super() -}}
