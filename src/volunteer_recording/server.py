@@ -110,7 +110,7 @@ CATEGORY_DATA: Final = DATA_PATH / "category.json"
 load_dotenv()
 PEPPER: Final = getenv("COOKIE_SECRET", "")
 
-PASSWORD_REGEX_STR: Final = r"(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9\s]).{5,}"  # noqa: S105
+PASSWORD_REGEX_STR: Final = r"(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9\s]).{12,}"  # noqa: S105
 PASSWORD_REGEX: Final = re.compile(PASSWORD_REGEX_STR)
 
 
@@ -825,7 +825,7 @@ async def admin_login_user_get(
 
     error_message: str | None = None
     if bad_password:
-        error_message = "Given password was incorrect."
+        error_message = "Provided password was incorrect, please try again."
 
     return await stream_template(
         "prompt_password.html.jinja",

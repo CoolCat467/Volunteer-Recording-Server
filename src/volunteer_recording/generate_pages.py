@@ -1014,7 +1014,7 @@ def admin_root_get() -> str:
     link_list = htmlgen.contain_in_box(
         htmlgen.link_list(
             {
-                "/admin/view-time-interval": "View time interval data",
+                "/admin/view-time-interval": "View Time Interval",
                 "/admin/edit-entries": "Edit Entries",
                 "/admin/edit-categories": "Edit Categories",
                 "/admin/edit-user": "Edit Users",
@@ -1286,7 +1286,6 @@ def admin_view_time_interval_get() -> str:
             time_interval_records_section,
             htmlgen.tag("br"),
             hours_per_user_categories_tables,
-            htmlgen.tag("br"),
             htmlgen.jinja_super_block(),
             export_csv_link,
         ),
@@ -2104,11 +2103,11 @@ def generate_admin_edit_user_new_password_get() -> str:
             attrs={
                 "required": True,
                 "autofocus": True,
-                "minlength": 12,
+                "minlength": 5,
                 "maxlength": 128,
                 "autocomplete": "new-password",
                 "pattern": server.PASSWORD_REGEX_STR,
-                "title": "Use at least 5 characters, including an uppercase letter, a lowercase letter, and a special character.",
+                "title": "Use at least 12 characters, including an uppercase letter, a lowercase letter, and a special character.",
             },
         ),
         scoped=True,
@@ -2117,6 +2116,13 @@ def generate_admin_edit_user_new_password_get() -> str:
     contents = "\n".join(
         (
             password_field_block,
+            htmlgen.tag("br"),
+            htmlgen.tag("br"),
+            htmlgen.wrap_tag(
+                "i",
+                "Passwords must be at least twelve characters long and include an uppercase letter, a lowercase letter, and a special character.",
+                block=False,
+            ),
             htmlgen.tag("br"),
             htmlgen.tag("br"),
             htmlgen.jinja_super_block(),
@@ -2146,6 +2152,7 @@ def generate_admin_edit_user_new_password_get() -> str:
                 htmlgen.wrap_tag(
                     "p",
                     f"Changes from the prior screen has been saved. Please {change_type} password for this user.{extra}",
+                    block=False,
                 ),
                 htmlgen.form(
                     "new_password_prompt",
