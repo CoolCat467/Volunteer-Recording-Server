@@ -314,7 +314,7 @@ Admin edit categories
 │ ┌────────────┐          │
 | | Categories │          │
 | ├────┬───────┤          |
-| |name│retired|          | -> /admin/categories/<internal category id>
+| |name│retired|          | -> /admin/edit-category/<internal category id>
 | ├────┼───────┤          |
 | ┆    ┆       ┆          |
 | ├────┼───────┤          |
@@ -334,7 +334,7 @@ Admin edit categories
 
 Admin edit category
 - /admin/new-category
-- /admin/categories/<internal category id>
+- /admin/edit-category/<internal category id>
 ╭───────────────────────────╮
 │ ┌───────────────────┐     │
 | | New category name │     │

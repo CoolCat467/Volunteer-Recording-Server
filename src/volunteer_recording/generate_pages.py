@@ -1603,6 +1603,66 @@ def generate_admin_configure_entry_get() -> str:
     )
 
 
+@save_template_as("admin_edit_categories")
+def generate_admin_edit_categories_get() -> str:
+    """Generate admin list categories GET page."""
+    select_entry_button = htmlgen.create_button(
+        "Select",
+        type_="submit",
+        name="category_id",
+        value=htmlgen.jinja_expression("category_id"),
+    )
+
+    categories_table = htmlgen.jinja_table(
+        None,
+        ("Category Title", "Retired", "Select"),
+        htmlgen.jinja_table_row(
+            ("category_id", "category"),
+            "category_records",
+            "\n".join(
+                (
+                    htmlgen.table_cell(
+                        htmlgen.jinja_expression("category.title|escape"),
+                    ),
+                    htmlgen.table_cell(
+                        htmlgen.jinja_checkbox(
+                            "category.retired",
+                            disabled=True,
+                        ),
+                    ),
+                    htmlgen.table_cell(
+                        select_entry_button,
+                    ),
+                ),
+            ),
+        ),
+        class_="user-table center",
+    )
+
+    create_new_category_link = htmlgen.create_link(
+        "/admin/create-category",
+        "Create new category",
+        class_="submit_button",
+    )
+
+    html = htmlgen.form(
+        "select_category",
+        "\n".join(
+            (
+                categories_table,
+                htmlgen.tag("br"),
+                htmlgen.jinja_super_block(),
+                create_new_category_link,
+            ),
+        ),
+    )
+
+    return template_admin_return_signout_footer(
+        html,
+        title="Select a Category to Modify",
+    )
+
+
 @save_template_as("admin_select_edit_user")
 def generate_admin_edit_user_get() -> str:
     """Generate admin select edit user from list GET page."""

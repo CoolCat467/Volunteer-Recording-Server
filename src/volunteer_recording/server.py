@@ -51,6 +51,7 @@ from typing import (
 from urllib.parse import urlencode
 from uuid import UUID, uuid4
 
+import orjson
 import platformdirs
 import trio
 from dotenv import load_dotenv
@@ -1611,11 +1612,10 @@ async def handle_admin_edit_entries_new_entry_user_post(
         )
 
     multi_dict = await request.form
-    form = multi_dict.to_dict()
 
-    date = form.get("date")
-    start_time = form.get("start_time")
-    end_time = form.get("end_time")
+    date = multi_dict.get("date")
+    start_time = multi_dict.get("start_time")
+    end_time = multi_dict.get("end_time")
     # permanently_delete = form.get("permanently_delete") is not None
 
     errors = []
@@ -1716,17 +1716,83 @@ async def handle_admin_edit_entries_new_entry_user_post(
 
 @app.get("/admin/edit-categories")
 @active_session_required
-async def handle_admin_edit_categories_get() -> tuple[AsyncIterator[str], int]:
+async def handle_admin_edit_categories_get() -> AsyncIterator[str]:
     """Handle administrator edit categories GET request."""
-    # Check that session is still valid
-    user_id = get_user_id_from_session()
+    category_db = APP_DATA["category"]
 
-    return await get_exception_page(
-        404,  # not found
-        "Not Found",
-        f"You are logged in as {user_id = }<br><i>This page has not been implemented yet™</i>",
-        return_link="/admin",
+    return await stream_template(
+        "admin_edit_categories.html.jinja",
+        category_records=enumerate(category_db),
     )
+
+
+@app.post("/admin/edit-categories")
+@active_session_required
+async def handle_admin_edit_categories_post() -> (
+    tuple[AsyncIterator[str], int] | WerkzeugResponse
+):
+    """Handle administrator edit categories POST request."""
+    multi_dict = await request.form
+
+    category_id = multi_dict.get("category_id")
+
+    errors = []
+    if category_id is None:
+        errors.append("Missing <code>category_id</code> field.")
+    elif not isinstance(category_id, str):
+        errors.append("<code>category_id</code> field type must be a string.")
+    elif not category_id.isdecimal():
+        errors.append(
+            "<code>category_id</code> field value must be a decimal.",
+        )
+
+    if errors:
+        return await get_exception_page(
+            400,  # bad request
+            "Bad Request",
+            "\n<br>\n".join(errors),
+            return_link=request.full_path.removesuffix("?"),
+        )
+
+    assert category_id is not None
+    numeric_category_id = int(category_id)
+
+    return app.redirect(f"/admin/edit-category/{numeric_category_id}")
+
+
+@app.get("/admin/create-category")
+@active_session_required
+async def handle_admin_create_category_get() -> tuple[AsyncIterator[str], int]:
+    """Handle administrator create category GET request."""
+    return await get_exception_page(
+        400,  # bad request
+        "Bad Request",
+        "TODO: Implement create category",
+        return_link="/admin/edit-categories",
+    )
+
+
+@app.get("/admin/edit-category/<int:category_id>")
+@active_session_required
+async def handle_admin_edit_category_get(
+    category_id: int,
+) -> tuple[AsyncIterator[str], int] | dict[str, str | bool]:
+    """Handle administrator edit category GET request."""
+    category_db = APP_DATA["category"]
+
+    category = category_db.get(category_id)
+
+    if category is None:
+        return await get_exception_page(
+            404,  # not found
+            "Not Found",
+            "Specified category not found.",
+            return_link="/admin/edit-categories",
+        )
+
+    value = orjson.loads(orjson.dumps(category))
+    assert isinstance(value, dict)
+    return value
 
 
 @app.get("/admin/edit-user")
