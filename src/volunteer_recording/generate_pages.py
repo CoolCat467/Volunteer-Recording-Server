@@ -1736,9 +1736,10 @@ def generate_admin_edit_categories_get() -> str:
                         htmlgen.jinja_expression("category.title|escape"),
                     ),
                     htmlgen.table_cell(
-                        htmlgen.jinja_checkbox(
-                            "category.retired",
-                            disabled=True,
+                        htmlgen.wrap_tag(
+                            "code",
+                            htmlgen.jinja_expression("category.retired"),
+                            block=False,
                         ),
                     ),
                     htmlgen.table_cell(
@@ -1887,15 +1888,17 @@ def generate_admin_edit_user_get() -> str:
                         htmlgen.jinja_expression('"%04d"|format(user.code)'),
                     ),
                     htmlgen.table_cell(
-                        htmlgen.jinja_checkbox(
-                            "user.retired",
-                            disabled=True,
+                        htmlgen.wrap_tag(
+                            "code",
+                            htmlgen.jinja_expression("user.retired"),
+                            block=False,
                         ),
                     ),
                     htmlgen.table_cell(
-                        htmlgen.jinja_checkbox(
-                            "user.is_admin",
-                            disabled=True,
+                        htmlgen.wrap_tag(
+                            "code",
+                            htmlgen.jinja_expression("user.is_admin"),
+                            block=False,
                         ),
                     ),
                     htmlgen.table_cell(

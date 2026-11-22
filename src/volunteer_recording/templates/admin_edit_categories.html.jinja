@@ -14,7 +14,7 @@
       {% for category_id, category in category_records %}
       <tr>
         <td>{{ category.title|escape }}</td>
-        <td><input {% if category.retired %}checked="true" {% endif %}type="checkbox" disabled="true"></td>
+        <td><code>{{ category.retired }}</code></td>
         <td><button type="submit" name="category_id" value="{{ category_id }}">Select</button></td>
       </tr>
       {% endfor %}
