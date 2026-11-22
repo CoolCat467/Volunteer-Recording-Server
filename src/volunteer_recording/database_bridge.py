@@ -569,6 +569,7 @@ class Calendar:
         date: dt.date,
         start_time: dt.time,
         end_time: dt.time,
+        category_id: int,
     ) -> None:
         """Insert a manual entry. Raises ValueError if the entry is invalid or overlaps."""
         bad_interval_reason = self.check_entry_collisions(
@@ -580,7 +581,7 @@ class Calendar:
             raise ValueError(bad_interval_reason.value)
 
         self._insert_timestamp(StampType.CHECK_IN, date, start_time)
-        self._insert_timestamp(StampType.CHECKOUT, date, end_time)
+        self._insert_timestamp(StampType.CHECKOUT, date, end_time, category_id)
 
     @staticmethod
     def interval_index_to_day_index(

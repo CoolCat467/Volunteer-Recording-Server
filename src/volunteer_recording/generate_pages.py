@@ -1515,6 +1515,59 @@ def generate_admin_configure_entry_get() -> str:
 
     firstname = htmlgen.jinja_expression("firstname")
     lastname = htmlgen.jinja_expression("lastname")
+
+    non_retired_select_category_options = htmlgen.jinja_for_loop(
+        ("current_category_id", "category"),
+        "category_records",
+        htmlgen.jinja_option_tag(
+            htmlgen.jinja_expression("current_category_id"),
+            htmlgen.jinja_expression("category.title|escape"),
+            jinja_properties=htmlgen.jinja_if_block(
+                {
+                    "current_category_id == category_id": 'selected="true" ',
+                },
+                block=False,
+            ),
+        ),
+        "not category.retired",
+    )
+
+    retired_select_category_options = htmlgen.jinja_for_loop(
+        ("current_category_id", "category"),
+        "retired_category_records",
+        htmlgen.jinja_option_tag(
+            htmlgen.jinja_expression("current_category_id"),
+            htmlgen.jinja_expression("category.title|escape"),
+            jinja_properties=htmlgen.jinja_if_block(
+                {
+                    "current_category_id == category_id": 'selected="true" ',
+                },
+                block=False,
+            ),
+        ),
+    )
+
+    retired_categories_group = htmlgen.wrap_optgroup(
+        "Retired Categories",
+        retired_select_category_options,
+    )
+
+    select_category_options = "\n".join(
+        (
+            non_retired_select_category_options,
+            htmlgen.jinja_with_block(
+                htmlgen.jinja_if_block(
+                    {
+                        "retired_category_records": retired_categories_group,
+                    },
+                ),
+                {
+                    "retired_category_records": "category_records | selectattr('1.retired') | list",
+                },
+            ),
+        ),
+    )
+
     rows = (
         (
             htmlgen.wrap_tag(
@@ -1589,7 +1642,31 @@ def generate_admin_configure_entry_get() -> str:
                     ),
                 ),
             ),
-            "",
+            "\n".join(
+                (
+                    htmlgen.wrap_tag(
+                        "label",
+                        "Category",
+                        False,
+                        for_="category_field",
+                    ),
+                    htmlgen.jinja_wrap_tag_arg(
+                        "select",
+                        (
+                            htmlgen.jinja_if_block(
+                                {
+                                    "not creating and category_id is not none": 'disabled="true" ',
+                                    "": 'required="true" ',
+                                },
+                                block=False,
+                            ),
+                        ),
+                        select_category_options,
+                        id_="category_field",
+                        name="category_id",
+                    ),
+                ),
+            ),
         ),
         (
             "\n".join(

@@ -703,7 +703,10 @@ def jinja_wrap_tag_arg(
 ) -> str:
     """Wrap value in HTML tag.
 
-    If block, indent value
+    If block, indent value.
+
+    For properties, make sure jinja expression value ends with a space
+    if tag arguments are to follow.
     """
     if block and content:
         content = f"\n{indent(2, content)}\n"
@@ -1048,5 +1051,43 @@ def jinja_checkbox(
             *jinja_properties,
         ),
         type_="checkbox",
+        **kwargs,
+    )
+
+
+def jinja_option_tag(
+    value: str,
+    label: str | None = None,
+    selected: bool = False,
+    disabled: bool = False,
+    short_label: str | None = None,
+    /,
+    jinja_properties: Iterable[str] | None = None,
+    **kwargs: TagArg,
+) -> str:
+    """Return option tag.
+
+    Value specifies the value to be sent to a server.
+    Short label specifies a shorter label for an option (label tag on
+    option).
+
+    For properties, make sure jinja expression value ends with a space
+    if tag arguments are to follow.
+    """
+    if jinja_properties is None:
+        jinja_properties = ()
+
+    kwargs["value"] = value
+    if selected:
+        kwargs["selected"] = True
+    if disabled:
+        kwargs["disabled"] = True
+    if short_label is not None:
+        kwargs["label"] = short_label
+    return jinja_wrap_tag_arg(
+        "option",
+        jinja_properties,
+        label or "",
+        block=False,
         **kwargs,
     )

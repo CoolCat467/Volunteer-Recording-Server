@@ -1008,7 +1008,9 @@ def yield_user_category_duration_breakdown(
 ]:
     """Yield (User, {Category: hours fraction}) tuples for all users for the given date range.
 
-    undefined_category is the Category or category id to use in the event of an automatic checkout undefined category.
+    undefined_category is the Category or category id to use in the event
+    of an automatic checkout undefined category.
+    Defaults to <automatic checkout undefined category>.
     """
     calendar_db = APP_DATA["calendar"]
     user_db = APP_DATA["user"]
@@ -1488,6 +1490,7 @@ async def handle_admin_edit_entries_resolve_entry_get(
     """Handle administrator resolve entry GET request."""
     calendar_db = APP_DATA["calendar"]
     user_db = APP_DATA["user"]
+    category_db = APP_DATA["category"]
 
     user_calendar = calendar_db.get(user_id)
 
@@ -1558,6 +1561,8 @@ async def handle_admin_edit_entries_resolve_entry_get(
         # date_min=date_min,
         # date_max=date_max,
         date_disabled=True,
+        category_id=end_timestamp.category_id,
+        category_records=tuple(enumerate(category_db)),
         start_time_disabled=(
             start_timestamp.type_ == database_bridge.StampType.CHECK_IN
         ),
@@ -1624,11 +1629,11 @@ async def handle_admin_edit_entries_resolve_entry_post(
         )
 
     multi_dict = await request.form
-    form = multi_dict.to_dict()
 
-    start_time = form.get("start_time")
-    end_time = form.get("end_time")
-    permanently_delete = form.get("permanently_delete") is not None
+    category_id = multi_dict.get("category_id")
+    start_time = multi_dict.get("start_time")
+    end_time = multi_dict.get("end_time")
+    permanently_delete = multi_dict.get("permanently_delete") is not None
 
     errors = []
     if not permanently_delete:
@@ -1642,6 +1647,17 @@ async def handle_admin_edit_entries_resolve_entry_post(
             elif parse_iso_time(end_time) is None:
                 errors.append(
                     "<code>end_time</code> field type must be an ISO time.",
+                )
+
+            if category_id is None:
+                errors.append("Missing <code>category_id</code> field.")
+            elif not isinstance(category_id, str):
+                errors.append(
+                    "<code>category_id</code> field type must be a string.",
+                )
+            elif not category_id.isdecimal():
+                errors.append(
+                    "<code>category_id</code> field value must be a decimal.",
                 )
         else:
             if not start_time:
@@ -1676,9 +1692,24 @@ async def handle_admin_edit_entries_resolve_entry_post(
             return_link="/admin/edit-entries",
         )
 
+    new_category_id: int | None = None
+
     if updating_checkout:
+        assert isinstance(category_id, str)
         assert isinstance(end_time, str)
+
+        new_category_id = int(category_id)
         new_time = dt.time.fromisoformat(end_time)
+
+        category_db = APP_DATA["category"]
+
+        if category_db.get(new_category_id) is None:
+            return await get_exception_page(
+                404,  # not found
+                "Not Found",
+                "Specified <code>category_id</code> not found.",
+                return_link=entry_type.value,
+            )
     else:
         assert isinstance(start_time, str)
         new_time = dt.time.fromisoformat(start_time)
@@ -1691,7 +1722,7 @@ async def handle_admin_edit_entries_resolve_entry_post(
     if new_time >= next_time:
         return app.redirect(f"{return_link}?too_late=1")
 
-    user_calendar.replace_timestamp(date, index, new_time)
+    user_calendar.replace_timestamp(date, index, new_time, new_category_id)
     unresolved_cache.resolve_event(stamp_type, user_id, date)
 
     return await stream_template(
@@ -1757,6 +1788,8 @@ async def handle_admin_edit_entries_new_entry_user_get(
 ) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
     """Handle administrator edit entries new entry user GET request."""
     user_db = APP_DATA["user"]
+    category_db = APP_DATA["category"]
+
     user = user_db.get(user_id)
 
     return_link = "/admin/edit-entries/create-entry/select-user"
@@ -1784,6 +1817,8 @@ async def handle_admin_edit_entries_new_entry_user_get(
         # date_min=date_min,
         date_max=today,
         # date_disabled=True,
+        # category_id=end_timestamp.category_id,
+        category_records=tuple(enumerate(category_db)),
         # start_time_disabled=True,
         # start_time=start_time,
         # end_time_disabled=True,
@@ -1799,6 +1834,7 @@ async def handle_admin_edit_entries_new_entry_user_post(
 ) -> tuple[AsyncIterator[str], int] | AsyncIterator[str]:
     """Handle administrator edit entries new entry user POST request."""
     user = APP_DATA["user"].get(user_id)
+    category_db = APP_DATA["category"]
 
     if user is None:
         return await get_exception_page(
@@ -1811,8 +1847,10 @@ async def handle_admin_edit_entries_new_entry_user_post(
     multi_dict = await request.form
 
     date = multi_dict.get("date")
+    category_id = multi_dict.get("category_id")
     start_time = multi_dict.get("start_time")
     end_time = multi_dict.get("end_time")
+
     # permanently_delete = form.get("permanently_delete") is not None
 
     errors = []
@@ -1849,6 +1887,15 @@ async def handle_admin_edit_entries_new_entry_user_post(
             "<code>end_time</code> field type must be an ISO time.",
         )
 
+    if category_id is None:
+        errors.append("Missing <code>category_id</code> field.")
+    elif not isinstance(category_id, str):
+        errors.append("<code>category_id</code> field type must be a string.")
+    elif not category_id.isdecimal():
+        errors.append(
+            "<code>category_id</code> field value must be a decimal.",
+        )
+
     source_page = request.full_path.removesuffix("?")
 
     if errors:
@@ -1860,12 +1907,22 @@ async def handle_admin_edit_entries_new_entry_user_post(
         )
 
     assert isinstance(date, str)
+    assert isinstance(category_id, str)
     assert isinstance(start_time, str)
     assert isinstance(end_time, str)
 
     parsed_date = dt.date.fromisoformat(date)
+    numeric_category_id = int(category_id)
     parsed_start_time = dt.time.fromisoformat(start_time)
     parsed_end_time = dt.time.fromisoformat(end_time)
+
+    if category_db.get(numeric_category_id) is None:
+        return await get_exception_page(
+            404,  # not found
+            "Not Found",
+            "Specified <code>category_id</code> not found.",
+            return_link=source_page,
+        )
 
     calendar_db = APP_DATA["calendar"]
     user_calendar = calendar_db[user_id]
@@ -1875,6 +1932,7 @@ async def handle_admin_edit_entries_new_entry_user_post(
         parsed_start_time,
         parsed_end_time,
     )
+
     if bad_interval_reason is not None:
         now = dt.datetime.now()
         today = now.date()
@@ -1890,6 +1948,8 @@ async def handle_admin_edit_entries_new_entry_user_post(
             # date_min=date_min,
             date_max=today,
             # date_disabled=True,
+            category_id=numeric_category_id,
+            category_records=tuple(enumerate(category_db)),
             # start_time_disabled=True,
             start_time=parsed_start_time,
             # end_time_disabled=True,
@@ -1901,6 +1961,7 @@ async def handle_admin_edit_entries_new_entry_user_post(
         parsed_date,
         parsed_start_time,
         parsed_end_time,
+        numeric_category_id,
     )
 
     return await stream_template(
