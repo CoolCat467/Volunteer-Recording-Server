@@ -1,10 +1,10 @@
 {% extends "return_footer.html.jinja" %}
-{% block title scoped %}Select your user{% if show_create %} or create a new account{% endif %}{% endblock title %}
+{% block title scoped %}Select your user{% if create_new_user_link %} or create a new one{% endif %}{% endblock title %}
 {% block body scoped %}
 <form id="select_user" name="select_user" method="post">
   {% if records_exist %}
   {% include 'select_user_table.html.jinja' %}
-  {% elif show_create %}
+  {% elif create_new_user_link %}
   <p>No users currently exist with the provided code. Press the button below to create one.</p>
   {% else %}
   <p>No users currently exist with this code.</p>
@@ -12,8 +12,8 @@
   <br>
   {{ super() -}}
   <a href="{{ return_link }}" class="submit_button">Enter a different code</a>
-  {% if show_create %}
-  <button type="submit" name="create_user">Create new user</button>
+  {% if create_new_user_link %}
+  <a href="{{ create_new_user_link }}" class="submit_button">Create a new user</a>
   {% endif %}
 </form>
 {% endblock body %}

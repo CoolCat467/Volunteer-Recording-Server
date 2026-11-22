@@ -1,5 +1,5 @@
 {% extends "return_footer.html.jinja" %}
-{% block title scoped %}Create a new account{% endblock title %}
+{% block title scoped %}Create a new user{% endblock title %}
 {% block body scoped %}
 <form id="create_user" name="create_user" method="post">
   <table>
@@ -8,6 +8,6 @@
   <br>
   {{ super() -}}
   <a href="{{ return_link }}" class="submit_button">Back to select user</a>
-  <button type="submit">Create User</button>
+  <button type="submit">Create user</button>
 </form>
 {% endblock body %}

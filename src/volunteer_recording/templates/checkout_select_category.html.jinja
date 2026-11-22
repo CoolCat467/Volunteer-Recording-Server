@@ -2,6 +2,7 @@
 {% block title scoped %}Select a Category{% endblock title %}
 {% block body scoped %}
 <form id="select_category" name="select_category" method="post">
+  <p>Select the category your contributions fall under.</p>
   <ul>
     {% for category_id, category in category_records if not category.retired %}
     <li><button type="submit" name="category_id" value="{{ category_id }}">{{ category.title|escape }}</button></li>

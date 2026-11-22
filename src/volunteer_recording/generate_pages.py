@@ -636,7 +636,7 @@ def generate_select_user_get() -> str:
     user_list_or_message = htmlgen.jinja_if_block(
         {
             "records_exist": select_user_table,
-            "show_create": htmlgen.wrap_tag(
+            "create_new_user_link": htmlgen.wrap_tag(
                 "p",
                 "No users currently exist with the provided code. Press the button below to create one.",
                 block=False,
@@ -655,14 +655,18 @@ def generate_select_user_get() -> str:
         class_="submit_button",
     )
 
-    create_new_user_button = htmlgen.create_button(
-        "Create new user",
-        type_="submit",
-        name="create_user",
+    create_new_user_link_endpoint = htmlgen.jinja_expression(
+        "create_new_user_link",
+    )
+
+    create_new_user_link = htmlgen.create_link(
+        create_new_user_link_endpoint,
+        "Create a new user",
+        class_="submit_button",
     )
 
     create_new_user_section = htmlgen.jinja_if_block(
-        {"show_create": create_new_user_button},
+        {"create_new_user_link": create_new_user_link},
     )
 
     form_content = "\n".join(
@@ -679,7 +683,7 @@ def generate_select_user_get() -> str:
 
     title_extra = htmlgen.jinja_if_block(
         {
-            "show_create": " or create a new account",
+            "create_new_user_link": " or create a new one",
         },
         block=False,
     )
@@ -780,7 +784,7 @@ def generate_create_user_get() -> str:
     )
 
     submit_button = htmlgen.create_button(
-        "Create User",
+        "Create user",
         type_="submit",
     )
 
@@ -800,7 +804,7 @@ def generate_create_user_get() -> str:
 
     return template_return_footer(
         html,
-        title="Create a new account",
+        title="Create a new user",
     )
 
 
@@ -817,6 +821,11 @@ def generate_checkout_select_category() -> str:
         "select_category",
         "\n".join(
             (
+                htmlgen.wrap_tag(
+                    "p",
+                    "Select the category your contributions fall under.",
+                    block=False,
+                ),
                 htmlgen.jinja_bullet_list(
                     ("category_id", "category"),
                     "category_records",

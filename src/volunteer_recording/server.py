@@ -364,32 +364,6 @@ def iterable_has_values[T](iterable: Iterable[T]) -> tuple[bool, Iterable[T]]:
     return True, generator()
 
 
-async def stream_select_user(
-    code: int,
-    return_link: str,
-    is_admin: bool = False,
-) -> AsyncIterator[str]:
-    """Return select user template stream."""
-    # Get user from code
-    user_db = APP_DATA["user"]
-    if is_admin:
-        user_records = user_db.yield_admin_records_from_code(
-            code=code,
-        )
-    else:
-        user_records = user_db.yield_records_from_code(code=code)
-
-    records_exist, records_gen = iterable_has_values(user_records)
-
-    return await stream_template(
-        "select_user.html.jinja",
-        records_exist=records_exist,
-        user_records=records_gen,
-        return_link=return_link,
-        show_create=not is_admin,
-    )
-
-
 @app.get(
     f"{SelectUserType.CHECK_IN.value}/select-user",
     endpoint="check_in_select_user_get",
@@ -407,11 +381,14 @@ async def select_user_get() -> (
     tuple[AsyncIterator[str], int] | AsyncIterator[str]
 ):
     """Handle select user GET request."""
+    user_db = APP_DATA["user"]
+
     args = request.args.to_dict()
 
     code = args.get("code")
 
     select_type = get_select_type_from_full_path(request.full_path)
+    return_link = select_type.value
 
     errors = []
     if not code:
@@ -427,17 +404,42 @@ async def select_user_get() -> (
             400,  # bad request
             "Bad Request",
             "\n<br>\n".join(errors),
-            return_link=select_type.value,
+            return_link=return_link,
         )
 
     assert code is not None
 
+    numeric_code = int(code)
+
     is_admin = select_type == SelectUserType.ADMIN_LOGIN
 
-    return await stream_select_user(
-        code=int(code),
-        return_link=select_type.value,
-        is_admin=is_admin,
+    create_new_user_link: str | None = None
+
+    # Get user from code
+    if is_admin:
+        user_records = user_db.yield_admin_records_from_code(
+            code=numeric_code,
+        )
+    else:
+        user_records = user_db.yield_records_from_code(code=numeric_code)
+
+        is_check_in = select_type == SelectUserType.CHECK_IN
+
+        endpoint = (
+            "check_in_create_user_get"
+            if is_check_in
+            else "checkout_create_user_get"
+        )
+        create_new_user_link = app.url_for(endpoint, code=f"{numeric_code:04}")
+
+    records_exist, records_gen = iterable_has_values(user_records)
+
+    return await stream_template(
+        "select_user.html.jinja",
+        records_exist=records_exist,
+        user_records=records_gen,
+        return_link=return_link,
+        create_new_user_link=create_new_user_link,
     )
 
 
@@ -459,36 +461,19 @@ async def select_user_post() -> (
 ):
     """Handle select user POST request."""
     multi_dict = await request.form
-    form = multi_dict.to_dict()
-    args = request.args.to_dict()
 
-    create_user = "create_user" in form
-    code = args.get("code")
-    user_id = form.get("user_id")
+    user_id = multi_dict.get("user_id")
 
     select_type = get_select_type_from_full_path(request.full_path)
-    create_available = select_type != SelectUserType.ADMIN_LOGIN
-
-    action_create = create_user and create_available
     source_page = select_type.value
 
     errors = []
-    if action_create and code is not None:
-        if len(code) != 4:
-            errors.append(
-                "<code>code</code> argument must be exactly 4 characters long.",
-            )
-        elif not code.isdecimal():
-            errors.append(
-                "<code>code</code> argument value must be a decimal.",
-            )
-    else:
-        if not isinstance(user_id, str):
-            errors.append("<code>user_id</code> field type must be a string.")
-        elif not user_id.isdecimal():
-            errors.append(
-                "<code>user_id</code> field value must be a decimal.",
-            )
+    if not isinstance(user_id, str):
+        errors.append("<code>user_id</code> field type must be a string.")
+    elif not user_id.isdecimal():
+        errors.append(
+            "<code>user_id</code> field value must be a decimal.",
+        )
     if errors:
         return await get_exception_page(
             400,  # bad request
@@ -496,15 +481,6 @@ async def select_user_post() -> (
             "\n<br>\n".join(errors),
             return_link=request.full_path.removesuffix("?"),
         )
-
-    if action_create:
-        params_dict = {}
-        if code is not None:
-            params_dict["code"] = f"{int(code):04}"
-
-        params = urlencode(params_dict)
-        extra = f"?{params}" if params else ""
-        return app.redirect(f"{source_page}/create-user{extra}")
 
     assert user_id is not None
     numeric_user_id = int(user_id)
