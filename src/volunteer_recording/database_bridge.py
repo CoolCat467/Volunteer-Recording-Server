@@ -135,6 +135,16 @@ class UserDatabase(Database[User]):
             retired=False,
         )
 
+    def yield_user_ids_lastname_alphabetical(self) -> Generator[int]:
+        """Yield user ids in lastname alphabetical order for the corresponding user entry."""
+        return (
+            user_id
+            for user_id, _user in sorted(
+                enumerate(self),
+                key=lambda tp: (tp[1].lastname, tp[1].firstname, tp[0]),
+            )
+        )
+
 
 class SerializedCategoryRecord(TypedDict):
     """Serialized Category record."""
@@ -747,9 +757,13 @@ class CalendarDatabase(Database[Calendar]):
         self,
         start_date: dt.date,
         end_date: dt.date,
+        user_id_iterable: Iterable[int] | None = None,
     ) -> Generator[tuple[int, Counter[int]]]:
         """Yield (user id, {category id: total seconds}) tuples for all users for the given date range."""
-        for user_id, calendar in enumerate(self):
+        if user_id_iterable is None:
+            user_id_iterable = range(len(self))
+        for user_id in user_id_iterable:
+            calendar = self[user_id]
             breakdown: Counter[int] = Counter()
             for (
                 category_id,

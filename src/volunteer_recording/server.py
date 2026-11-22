@@ -1037,6 +1037,7 @@ def yield_user_category_duration_breakdown(
     for user_id, breakdown in calendar_db.yield_category_duration_breakdown(
         start,
         end,
+        user_db.yield_user_ids_lastname_alphabetical(),
     ):
         user = user_db[user_id]
         yield (
