@@ -1112,7 +1112,7 @@ def admin_view_time_interval_get() -> str:
 
     export_csv_link = htmlgen.create_link(
         export_link,
-        "Export CSV",
+        "Export as CSV",
         class_="submit_button",
     )
 
