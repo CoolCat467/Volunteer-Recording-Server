@@ -2,18 +2,12 @@
 {% block title scoped %}Edit Category{% endblock title %}
 {% block body scoped %}
 <form id="modify_category" name="modify_category" method="post">
-  <table>
-    <tr>
-      <td>
-        <label for="title">Title</label>
-        <input id="title" name="title" value="{{ autofill_title|escape }}" required="true" size="30">
-      </td>
-      <td>
-        <label for="retired_checkbox">Retired</label>
-        <input {% if autofill_retired %}checked="true" {% endif %}type="checkbox" id="retired_checkbox" name="retired">
-      </td>
-    </tr>
-  </table>
+  <label for="title">Title</label>
+  <input id="title" name="title" value="{{ autofill_title|escape }}" required="true" minlength="3" size="30">
+  <br>
+  <label for="retired_checkbox">Retired</label>
+  <input {% if autofill_retired %}checked="true" {% endif %}type="checkbox" id="retired_checkbox" name="retired">
+  <br>
   <br>
   {{ super() -}}
   <a href="/admin/edit-categories" class="submit_button">Return to category list without saving</a>

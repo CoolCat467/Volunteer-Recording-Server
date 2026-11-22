@@ -1682,22 +1682,15 @@ def generate_admin_edit_category_get() -> str:
         ),
     )
 
-    row_elements = (
-        htmlgen.input_field(
-            "title",
-            "Title",
-            attrs={
-                "value": htmlgen.jinja_expression("autofill_title|escape"),
-                "required": True,
-                "size": 30,
-            },
-        ),
-        retired_checkbox,
-    )
-
-    input_fields_rows = htmlgen.table_row_elements(
-        row_elements,
-        cell_block=True,
+    title_text_input = htmlgen.input_field(
+        "title",
+        "Title",
+        attrs={
+            "value": htmlgen.jinja_expression("autofill_title|escape"),
+            "required": True,
+            "minlength": 3,
+            "size": 30,
+        },
     )
 
     back_link = htmlgen.create_link(
@@ -1720,7 +1713,10 @@ def generate_admin_edit_category_get() -> str:
 
     form_content = "\n".join(
         (
-            htmlgen.wrap_tag("table", input_fields_rows),
+            title_text_input,
+            htmlgen.tag("br"),
+            retired_checkbox,
+            htmlgen.tag("br"),
             htmlgen.tag("br"),
             htmlgen.jinja_super_block(),
             back_link,
