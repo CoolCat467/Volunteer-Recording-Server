@@ -1002,13 +1002,25 @@ async def handle_admin_signout_get() -> AsyncIterator[str]:
 def yield_user_category_duration_breakdown(
     start: dt.date,
     end: dt.date,
+    undefined_category: database_bridge.Category | int | None = None,
 ) -> Generator[
     tuple[database_bridge.User, dict[database_bridge.Category, Fraction]]
 ]:
-    """Yield (User, {Category: hours fraction}) tuples for all users for the given date range."""
+    """Yield (User, {Category: hours fraction}) tuples for all users for the given date range.
+
+    undefined_category is the Category or category id to use in the event of an automatic checkout undefined category.
+    """
     calendar_db = APP_DATA["calendar"]
     user_db = APP_DATA["user"]
     category_db = APP_DATA["category"]
+
+    if undefined_category is None:
+        undefined_category = database_bridge.Category(
+            "<automatic checkout undefined category>",
+            True,
+        )
+    elif isinstance(undefined_category, int):
+        undefined_category = category_db[undefined_category]
 
     for user_id, breakdown in calendar_db.yield_category_duration_breakdown(
         start,
@@ -1019,7 +1031,9 @@ def yield_user_category_duration_breakdown(
         yield (
             user,
             {
-                category_db[category_id]: Fraction(seconds, 60 * 60)
+                category_db[category_id]
+                if category_id is not None
+                else undefined_category: Fraction(seconds, 60 * 60)
                 for category_id, seconds in breakdown.items()
             },
         )

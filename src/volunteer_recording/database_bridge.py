@@ -207,7 +207,7 @@ class Timestamp:
 
     type_: StampType
     time: dt.time
-    category_id: int = 0
+    category_id: int | None = None
 
     @classmethod
     def deserialize(cls, dict_: SerializedTimestampRecord) -> Self:
@@ -215,7 +215,7 @@ class Timestamp:
         return cls(
             type_=StampType(dict_["type_"]),
             time=dt.time.fromisoformat(dict_["time"]),
-            category_id=dict_.get("category_id", 0),
+            category_id=dict_.get("category_id"),
         )
 
 
@@ -345,7 +345,7 @@ class Calendar:
         type_: StampType,
         date: dt.date,
         time: dt.time,
-        category_id: int = 0,
+        category_id: int | None = None,
     ) -> None:
         """Add timestamp of given type for given date and time."""
         day = self.days.setdefault(date, [])
@@ -403,7 +403,7 @@ class Calendar:
         self,
         type_: StampType,
         datetime: dt.datetime,
-        category_id: int = 0,
+        category_id: int | None = None,
     ) -> tuple[dt.date, StampType] | None:
         """Add timestamp of given time from given datetime."""
         date = datetime.date()
@@ -517,7 +517,7 @@ class Calendar:
         type_: StampType,
         date: dt.date,
         time: dt.time,
-        category_id: int = 0,
+        category_id: int | None = None,
     ) -> None:
         """Insert timestamp of given type for given date and time."""
         day = self.days.setdefault(date, [])
@@ -644,7 +644,10 @@ class Calendar:
         new_time: dt.time,
         new_category_id: int | None = None,
     ) -> None:
-        """Replace time of a specified timestamp with a new time."""
+        """Replace time of a specified timestamp with a new time.
+
+        If new_category_id is None, leave it unchanged.
+        """
         if date not in self.days:
             raise KeyError(f"{date = } not recorded")
         assert index > 0
@@ -707,7 +710,7 @@ class Calendar:
     def yield_interval_category_seconds(
         self,
         date: dt.date,
-    ) -> Generator[tuple[int, int]]:
+    ) -> Generator[tuple[int | None, int]]:
         """Yield (category_id, duration seconds) for every interval on the given date."""
         for start, end in self.yield_interval_data(date):
             start_datetime = dt.datetime.combine(date, start.time)
@@ -720,7 +723,7 @@ class Calendar:
         self,
         start_date: dt.date,
         end_date: dt.date,
-    ) -> Generator[tuple[int, int]]:
+    ) -> Generator[tuple[int | None, int]]:
         """Yield (category_id, duration seconds) for every interval within the range of dates inclusive."""
         for date in yield_days(start_date, end_date):
             yield from self.yield_interval_category_seconds(date)
@@ -758,13 +761,13 @@ class CalendarDatabase(Database[Calendar]):
         start_date: dt.date,
         end_date: dt.date,
         user_id_iterable: Iterable[int] | None = None,
-    ) -> Generator[tuple[int, Counter[int]]]:
-        """Yield (user id, {category id: total seconds}) tuples for all users for the given date range."""
+    ) -> Generator[tuple[int, Counter[int | None]]]:
+        """Yield (user id, {category id: total seconds}) tuples for users for the given date range."""
         if user_id_iterable is None:
             user_id_iterable = range(len(self))
         for user_id in user_id_iterable:
             calendar = self[user_id]
-            breakdown: Counter[int] = Counter()
+            breakdown: Counter[int | None] = Counter()
             for (
                 category_id,
                 duration,
@@ -779,7 +782,7 @@ class CalendarDatabase(Database[Calendar]):
         self,
         date: dt.date,
     ) -> Generator[tuple[int, tuple[dt.date, StampType]]]:
-        """Yield (user_id, (date, stamp type)) automatic event tuples."""
+        """Yield (user_id, (date, stamp type)) automatic checkout event tuples."""
         for user_id, calendar in enumerate(self):
             event = calendar.end_of_day_check_missing_stamp(date)
             if event is not None:
