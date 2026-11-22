@@ -142,12 +142,7 @@ async def compare_hash(
     # 1 millisecond is 1e+6 nanoseconds
     target = 2e6  # Probably fine given ~136403ns test, order of magnitude up
     start = time.perf_counter_ns()
-    recorded, new_hash = get_password_hash_for_compare(
-        password,
-        database_value,
-        pepper,
-    )
-    is_equal = recorded == new_hash
+    is_equal = compare_hash_sync(password, database_value, pepper)
     end = time.perf_counter_ns()
     # Sleep for at least target nanoseconds (divide by 1e+9 -> seconds)
     await trio.sleep(max(0, target - (end - start)) / 1e9)
